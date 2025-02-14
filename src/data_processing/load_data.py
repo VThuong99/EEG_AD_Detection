@@ -3,8 +3,8 @@ import pandas as pd
 import os
 import pickle
 
-DATA_PATH = "./data"  # Replace with your actual data path
-PROCESSED_DATA_PATH = "./processed_data"  # Replace with your actual processed data path
+from config import DATA_PATH, PROCESSED_DATA_PATH
+
 
 
 def load_subject(subject_id: int, path: str = DATA_PATH) -> mne.io.Raw:
