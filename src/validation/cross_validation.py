@@ -47,7 +47,7 @@ class LOSOCV:
             'precision': precision
         }
 
-    def run(self, features, targets):
+    def run(self, features, targets, flatten_final=True):
         """ Performs the LOSO cross-validation. """
         n_subjects = len(features)
 
