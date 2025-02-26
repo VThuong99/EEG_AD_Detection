@@ -1,0 +1,6 @@
+                          Model  Accuracy
+                      KNN (k=3)  0.657718
+                  Random Forest  0.936242
+MLP (1 Hidden Layer, 3 Neurons)  0.949664
+              SVM (Poly Kernel)  0.979866
+           LightGBM (Optimized)  1.000000
