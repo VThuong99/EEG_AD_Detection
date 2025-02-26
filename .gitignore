@@ -1,5 +1,4 @@
 datasets/
-notebooks/
 *.ipynb
 *.pyc
 !experiment.ipynb
