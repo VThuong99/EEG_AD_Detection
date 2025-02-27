@@ -84,17 +84,17 @@ class LOSOCV:
             train_confusion_matrices.append(confusion_matrix(train_y, train_pred, labels=labels))
             test_confusion_matrices.append(confusion_matrix(test_y, test_pred, labels=labels))
 
-            # Calculate the average metrics across all folds
-            train_confusion_matrix = np.sum(train_confusion_matrices, axis=0)
-            test_confusion_matrix = np.sum(test_confusion_matrices, axis=0)
+        # Calculate the average metrics across all folds
+        train_confusion_matrix = np.sum(train_confusion_matrices, axis=0)
+        test_confusion_matrix = np.sum(test_confusion_matrices, axis=0)
 
-            # Calculate the metrics
-            train_metrics = {}
-            test_metrics = {}
-            for metric in self.metrics: #Loop through all of the strings in the metrics function
-                train_metrics[metric] = self.METRIC_FUNCTIONS[metric](train_confusion_matrix)
-                test_metrics[metric] = self.METRIC_FUNCTIONS[metric](test_confusion_matrix)
+        # Calculate the metrics
+        train_metrics = {}
+        test_metrics = {}
+        for metric in self.metrics: #Loop through all of the strings in the metrics function
+            train_metrics[metric] = self.METRIC_FUNCTIONS[metric](train_confusion_matrix)
+            test_metrics[metric] = self.METRIC_FUNCTIONS[metric](test_confusion_matrix)
 
-            return train_metrics, test_metrics
+        return train_metrics, test_metrics
 
 
