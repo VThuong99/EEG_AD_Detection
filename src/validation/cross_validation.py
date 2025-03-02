@@ -64,13 +64,19 @@ class LOSOCV:
         for i in subject_indices:
             # Prepare training and testing data for this fold
             train_X, train_y = train_prep(features, targets, exclude=i, flatten_final=flatten_final)
-            test_X = features[i].reshape(features[i].shape[0], -1)
+            if flatten_final:
+                test_X = features[i].reshape(features[i].shape[0], -1)
+            else:
+                test_X = features[i]
+
             test_y = targets[i] * np.ones(features[i].shape[0])
 
-            # Scale the training and testing data using StandardScaler
-            scaler = StandardScaler()
-            train_X = scaler.fit_transform(train_X)
-            test_X = scaler.transform(test_X)
+          
+            if flatten_final:
+                scaler = StandardScaler()
+                train_X = scaler.fit_transform(train_X)
+                test_X = scaler.transform(test_X)
+
 
             # Fit the model on the training data
             self.model.fit(train_X, train_y)

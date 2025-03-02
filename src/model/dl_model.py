@@ -13,14 +13,14 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
 
     def fit(self, X, y):
         self.model.to(self.device)
+        self.model.train()
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
 
+        # x shape (n_samples, num_channels, n_samples_per_epoch)
         dataset = torch.utils.data.TensorDataset(torch.tensor(X, dtype=torch.float32),
-                                                 torch.tensor(y, dtype=torch.long))
+                                                   torch.tensor(y, dtype=torch.long))
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
-
-        self.model.train()
         for epoch in range(self.epochs):
             for batch_X, batch_y in dataloader:
                 batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
@@ -35,7 +35,11 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
         self.model.to(self.device)
         self.model.eval()
         with torch.no_grad():
-            X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+            # if x shape (n_samples, num_channels, n_samples_per_epoch) thì không cần thêm dimension
+            if X.ndim == 3:
+                X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+            else:
+                X_tensor = torch.tensor(X, dtype=torch.float32).unsqueeze(0).to(self.device)
             outputs = self.model(X_tensor)
             _, predictions = torch.max(outputs, 1)
         return predictions.cpu().numpy()
@@ -44,6 +48,10 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
         self.model.to(self.device)
         self.model.eval()
         with torch.no_grad():
-            X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+            if X.ndim == 3:
+                X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+            else:
+                X_tensor = torch.tensor(X, dtype=torch.float32).unsqueeze(0).to(self.device)
             outputs = self.model(X_tensor)
-            return torch.softmax(outputs, dim=1).cpu().numpy()
+            probabilities = torch.softmax(outputs, dim=1)
+        return probabilities.cpu().numpy()
