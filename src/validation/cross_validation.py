@@ -63,7 +63,7 @@ class LOSOCV:
         # LOCOCV code
         for i in subject_indices:
             # Prepare training and testing data for this fold
-            train_X, train_y = train_prep(features, targets, exclude=i, flatten_final=True)
+            train_X, train_y = train_prep(features, targets, exclude=i, flatten_final=flatten_final)
             test_X = features[i].reshape(features[i].shape[0], -1)
             test_y = targets[i] * np.ones(features[i].shape[0])
 
