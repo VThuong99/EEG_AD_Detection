@@ -8,7 +8,7 @@ class CNNNet(nn.Module):
     Output: logits cho num_classes
     """
     def __init__(self, num_channels, num_samples, num_classes):
-        super(LCADNet, self).__init__()
+        super(CNNNet, self).__init__()
         self.conv1 = nn.Conv1d(in_channels=num_channels, out_channels=16, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm1d(16)
         self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
