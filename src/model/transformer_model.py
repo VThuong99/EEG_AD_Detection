@@ -25,9 +25,9 @@ class TransformerEEG(nn.Module):
 
     def forward(self, x):
         # x: (batch, num_channels, num_samples)
-        x = x.transpose(1, 2)
-        x = self.input_proj(x)
-        x = x.transpose(0, 1)
+        x = x.transpose(1, 2)   # (batch, num_samples, num_channels)
+        x = self.input_proj(x)  # (batch, num_samples, d_model)
+        x = x.transpose(0, 1)   # (num_samples, batch, d_model)
         # Transformer Encoder
         x = self.transformer_encoder(x)
         x = x.mean(dim=0)
