@@ -107,8 +107,6 @@ class LOSOCV:
 
             if verbose >= 1: # Print fold-wise information if verbose level is 1 or higher
                 print(f"\nFold {fold_index + 1}/{len(subject_indices)} - Subject {subject_index}:") # Added fold index and subject index
-                if verbose >= 2: # Conditionally print epoch losses if verbose level is 2 or higher
-                    print(f"  Epoch Losses: {epoch_losses}") # Print epoch losses
                 fold_train_metrics = {}
                 fold_test_metrics = {}
                 for metric in self.metrics:

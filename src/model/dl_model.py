@@ -12,7 +12,7 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
         self.batch_size = batch_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def fit(self, X, y, calculate_epoch_loss=False): # Added calculate_epoch_loss parameter, default False
+    def fit(self, X, y, calculate_epoch_loss=False): 
         self.model.to(self.device)
         self.model.train()
         criterion = nn.CrossEntropyLoss()
