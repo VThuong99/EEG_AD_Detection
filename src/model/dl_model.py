@@ -36,8 +36,8 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
                 loss.backward()
                 optimizer.step()
 
-                if calculate_epoch_loss: # Only append batch loss if calculate_epoch_loss is True
-                    batch_losses.append(loss.item()) # Store batch loss
+                if calculate_epoch_loss: 
+                    batch_losses.append(loss.item()) 
 
             if calculate_epoch_loss: # Only calculate and print epoch loss if calculate_epoch_loss is True
                 epoch_loss = np.mean(batch_losses) # Calculate average loss for epoch

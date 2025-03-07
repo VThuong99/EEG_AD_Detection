@@ -62,11 +62,6 @@ class LOSOCV:
 
         train_confusion_matrices = []
         test_confusion_matrices = []
-        # all_epoch_losses = None # No longer need to initialize or return all_epoch_losses
-
-        # if verbose >= 2: # No longer need to initialize all_epoch_losses conditionally
-        #     all_epoch_losses = [] # List to store epoch losses for all folds
-
 
         if (self.n_folds == None):
             subject_indices = range(n_subjects)
