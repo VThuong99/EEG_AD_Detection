@@ -94,8 +94,9 @@ class GCNformer(nn.Module):
         x_time = x_time.mean(dim=0)       # (batch, d_model)
         
         # GCN branch
-        x_gcn = self.gcn1(x, self.adj)    # (batch, num_channels, gcn_hidden)
-        x_gcn = self.gcn2(x_gcn, self.adj)  # (batch, num_channels, gcn_out)
+        adj = self.adj.to(x.device)
+        x_gcn = self.gcn1(x, adj)    # (batch, num_channels, gcn_hidden)
+        x_gcn = self.gcn2(x_gcn, adj)  # (batch, num_channels, gcn_out)
         x_gcn = x_gcn.mean(dim=1)         # Global average pooling over channels
         
         # Combine both branches
