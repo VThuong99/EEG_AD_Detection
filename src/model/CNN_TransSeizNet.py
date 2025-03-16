@@ -134,19 +134,15 @@ class CNN_TransSeizNet(nn.Module):
             self.activation = None
 
     def forward(self, x):
-        print("Input shape:", x.shape)  # (B, channels, samplepoints)
         # Permute to (B, samplepoints, channels) then unsqueeze to (B, 1, samplepoints, channels)
         x = x.permute(0, 2, 1).unsqueeze(1)
-        print("After permute and unsqueeze:", x.shape)
 
         # --- Convolutional Layers ---
         x = self.conv1(x)
-        print("After conv1:", x.shape)
         x = self.bn1(x)
         x = F.relu(x)
 
         x = self.conv2(x)
-        print("After conv2:", x.shape)
         # x = self.bn2(x)
         x = F.relu(x)
 
@@ -159,7 +155,6 @@ class CNN_TransSeizNet(nn.Module):
         x = self.gap(x)  # now shape: (B, hidden_size, channels_out)
         # Permute to (B, channels_out, hidden_size) so that each channel becomes a token.
         x = x.permute(0, 2, 1)
-        print("After GAP and permute:", x.shape)
 
         # --- Append Class Token ---
         x = self.class_token(x)
@@ -167,21 +162,16 @@ class CNN_TransSeizNet(nn.Module):
         if self.pos_emb is None or self.pos_emb.size(1) != x.size(1):
             self.pos_emb = nn.Parameter(torch.randn(1, x.size(1), x.size(2)) * 0.06).to(x.device)
         x = x + self.pos_emb
-        print("After adding positional embeddings:", x.shape)
 
         # --- Transformer Blocks ---
         for i, block in enumerate(self.transformer_layers):
             x, attn = block(x)
-            print(f"After transformer block {i+1}:", x.shape)
 
         x = self.norm(x)
-        print("After LayerNorm:", x.shape)
         # --- Extract Class Token ---
         x_cls = x[:, 0]  # (B, hidden_size)
-        print("After extracting class token:", x_cls.shape)
 
         x_out = self.head(x_cls)
-        print("After classification head:", x_out.shape)
 
         if self.activation is not None:
             x_out = self.activation(x_out) if self.activation != torch.softmax else self.activation(x_out, dim=-1)
