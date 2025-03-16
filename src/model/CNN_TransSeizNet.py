@@ -105,9 +105,11 @@ class CNN_TransSeizNet(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(4,1), 
                                stride=(2,1), padding=(1, 0))
         self.bn1 = nn.BatchNorm2d(32)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=(4,1), stride=(2,1), padding=(1, 0))
-        self.bn2 = nn.BatchNorm2d(64)
-        self.conv3 = nn.Conv2d(64, hidden_size, kernel_size=(4,1), stride=(2,1), padding=(1, 0))
+        self.conv2 = nn.Conv2d(32, hidden_size, kernel_size=(4,1), stride=(2,1), padding=(1, 0))
+
+        # self.conv2 = nn.Conv2d(32, 64, kernel_size=(4,1), stride=(2,1), padding=(1, 0))
+        # self.bn2 = nn.BatchNorm2d(64)
+        # self.conv3 = nn.Conv2d(64, hidden_size, kernel_size=(4,1), stride=(2,1), padding=(1, 0))
         # --- Global Average Pooling (over the time dimension) ---
         self.gap = GAP1Dtime()
         # After conv layers and GAP, we expect shape: (B, hidden_size, W) where W ~ channels.
@@ -132,44 +134,57 @@ class CNN_TransSeizNet(nn.Module):
             self.activation = None
 
     def forward(self, x):
-        # x: (B, channels, samplepoints)
-        # Permute to (B, samplepoints, channels) and unsqueeze to (B, 1, samplepoints, channels)
+        print("Input shape:", x.shape)  # (B, channels, samplepoints)
+        # Permute to (B, samplepoints, channels) then unsqueeze to (B, 1, samplepoints, channels)
         x = x.permute(0, 2, 1).unsqueeze(1)
+        print("After permute and unsqueeze:", x.shape)
+
         # --- Convolutional Layers ---
         x = self.conv1(x)
+        print("After conv1:", x.shape)
         x = self.bn1(x)
         x = F.relu(x)
+
         x = self.conv2(x)
-        x = self.bn2(x)
+        print("After conv2:", x.shape)
+        # x = self.bn2(x)
         x = F.relu(x)
-        x = self.conv3(x)
-        x = F.relu(x)
+
+        # x = self.conv3(x)
+        # print("After conv3:", x.shape)
+        # x = F.relu(x)
         # x: (B, hidden_size, T, channels_out)
+
         # --- Global Average Pooling over T dimension ---
         x = self.gap(x)  # now shape: (B, hidden_size, channels_out)
-        # Permute to (B, channels_out, hidden_size) so that each channel is a token.
-        x = x.permute(0, 2, 1)  # (B, seq_len, hidden_size) where seq_len = channels_out
+        # Permute to (B, channels_out, hidden_size) so that each channel becomes a token.
+        x = x.permute(0, 2, 1)
+        print("After GAP and permute:", x.shape)
+
         # --- Append Class Token ---
-        x = self.class_token(x)  # (B, seq_len+1, hidden_size)
+        x = self.class_token(x)
         # --- Add Positional Embeddings ---
         if self.pos_emb is None or self.pos_emb.size(1) != x.size(1):
             self.pos_emb = nn.Parameter(torch.randn(1, x.size(1), x.size(2)) * 0.06).to(x.device)
         x = x + self.pos_emb
+        print("After adding positional embeddings:", x.shape)
+
         # --- Transformer Blocks ---
-        for block in self.transformer_layers:
-            x, _ = block(x)
+        for i, block in enumerate(self.transformer_layers):
+            x, attn = block(x)
+            print(f"After transformer block {i+1}:", x.shape)
+
         x = self.norm(x)
+        print("After LayerNorm:", x.shape)
         # --- Extract Class Token ---
         x_cls = x[:, 0]  # (B, hidden_size)
+        print("After extracting class token:", x_cls.shape)
+
         x_out = self.head(x_cls)
+        print("After classification head:", x_out.shape)
+
         if self.activation is not None:
-            # For softmax, specify dim=-1
             x_out = self.activation(x_out) if self.activation != torch.softmax else self.activation(x_out, dim=-1)
         return x_out
 
-if __name__ == '__main__':
-    # Quick test: build the model and print summary
-    model = TransformerEEG(channels=24, samplepoints=512, classes=2, activation='sigmoid')
-    x_dummy = torch.randn(4, 24, 512)
-    out = model(x_dummy)
-    print("Output shape:", out.shape)
+
