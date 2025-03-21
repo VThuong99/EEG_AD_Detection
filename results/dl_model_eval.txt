@@ -1,0 +1,76 @@
+Testing model: Conv
+
+    "Conv": Conv1dformer(
+        num_channels=num_channels,
+        num_samples=num_samples,
+        num_classes=num_classes,
+        d_model=32,
+        nhead=4,
+        num_layers=2,
+        dim_feedforward=64,
+        dropout=0.1,
+        kernel_size=2 #kernel_size=1-3
+    )
+
+Train Metrics: {'accuracy': 0.9775721226343964, 'sensitivity': 0.9832198653024666, 'specificity': 0.970748001998002, 'f1': 0.9795810892195123}
+Test Metrics: {'accuracy': 0.9206815954158184, 'sensitivity': 0.9336502687060769, 'specificity': 0.905011655011655, 'f1': 0.9279600082174896}
+
+============================================================
+
+CNN_TransSeizNet(channels=19, samplepoints=5, classes=2)
+
+Train Metrics: {'accuracy': 0.9755128223252658, 'sensitivity': 0.979694174590051, 'specificity': 0.970460529054279, 'f1': 0.9776696770963651}
+Test Metrics: {'accuracy': 0.9042071929427731, 'sensitivity': 0.9098112167562353, 'specificity': 0.8974358974358975, 'f1': 0.9122310110186177}
+
+============================================================
+
+Testing model: Encoder
+
+    "Encoder": TransformerEEG(
+        num_channels=n_channels, 
+        num_samples=n_samples_per_epoch, 
+        num_classes=num_classes)
+
+
+Train Metrics: {'accuracy': 0.9840292307547313, 'sensitivity': 0.9882128892793165, 'specificity': 0.9789741508491508, 'f1': 0.985446646201544}
+Test Metrics: {'accuracy': 0.9162708286209756, 'sensitivity': 0.9056772771117542, 'specificity': 0.929070929070929, 'f1': 0.922100242011855}
+
+============================================================
+
+Testing model: Dual
+
+    "Dual": DAformer(
+        num_channels=num_channels,
+        num_samples=num_samples,
+        num_classes=num_classes,
+        d_model=32,
+        nhead=4,
+        num_layers=2,
+        dim_feedforward=64,
+        dropout=0.1
+    )
+
+
+Train Metrics: {'accuracy': 0.9751705873482621, 'sensitivity': 0.9765915667631253, 'specificity': 0.9734536297036297, 'f1': 0.9772943716414502}
+Test Metrics: {'accuracy': 0.8963658297519415, 'sensitivity': 0.8852142758715723, 'specificity': 0.9098401598401599, 'f1': 0.9033573563016346}
+
+============================================================
+
+Testing model: GNN
+
+    "GNN": GCNformer(
+        num_channels=num_channels,
+        num_samples=num_samples,
+        num_classes=num_classes,
+        adj=torch.eye(num_channels,),  # Using identity matrix as a dummy adjacency matrix
+        d_model=32,
+        nhead=4,
+        num_layers=2,
+        dim_feedforward=64,
+        dropout=0.1,
+        gcn_hidden=16,
+        gcn_out=16
+    )
+
+Train Metrics: {'accuracy': 0.9764458691472517, 'sensitivity': 0.9780395221854761, 'specificity': 0.9745202713952714, 'f1': 0.9784666617482892}
+Test Metrics: {'accuracy': 0.9037548066048405, 'sensitivity': 0.885489871847871, 'specificity': 0.9258241758241759, 'f1': 0.9096507060197473}
