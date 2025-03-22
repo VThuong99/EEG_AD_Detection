@@ -85,6 +85,10 @@ class LOSOCV:
                 train_X = scaler.fit_transform(train_X)
                 test_X = scaler.transform(test_X)
 
+            for layer in self.model.model.modules():
+                if hasattr(layer, 'reset_parameters'):
+                    layer.reset_parameters()
+
             # Fit the model on the training data
             trained_model, epoch_losses = self.model.fit(train_X, train_y, calculate_epoch_loss=(verbose >= 2)) 
             self.model = trained_model # Update self.model with trained model for prediction
