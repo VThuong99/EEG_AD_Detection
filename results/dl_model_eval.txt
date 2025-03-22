@@ -9,7 +9,7 @@ Testing model: Conv
         num_layers=2,
         dim_feedforward=64,
         dropout=0.1,
-        kernel_size=2 #kernel_size=1-3
+        kernel_size=2 
     )
 
 Train Metrics: {'accuracy': 0.9775721226343964, 'sensitivity': 0.9832198653024666, 'specificity': 0.970748001998002, 'f1': 0.9795810892195123}
