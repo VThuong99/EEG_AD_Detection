@@ -31,6 +31,13 @@ def process_data(duration: float, overlap: float, classes: dict = {'A': 1, 'F': 
         Filepath to the data folder. Defaults to PATH in config.py.
     processed_path : str, optional
         Filepath to the folder where the processed data will be saved. Defaults to PROCESSED_DATA_PATH in config.py.
+
+    Returns
+    -------
+    subject_datas : list
+        List of numpy arrays, each array has shape (num_epochs, num_channels, num_samples_per_epoch) của từng subject.
+    targets : list
+        List contain target label with each subject.
     """
 
     subject_table = pd.read_csv(data_path + '/participants.tsv', sep='\t')
@@ -89,6 +96,7 @@ def load_processed_data(duration: float, overlap: float, processed_path=PROCESSE
         filepath = os.path.join(processed_path, filename)
         with open(filepath, 'rb') as file:
             data = pickle.load(file)
+            print(data['targets'])
             subject_data.append(data['subject_data'])
             targets.append(data['targets'])
 
