@@ -50,10 +50,17 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
         self.model.to(self.device)
         self.model.eval()
         with torch.no_grad():
-            if X.ndim == 3:
+            # Convert input to tensor if not already.
+            if not isinstance(X, torch.Tensor):
                 X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
             else:
-                X_tensor = torch.tensor(X, dtype=torch.float32).unsqueeze(0).to(self.device)
+                X_tensor = X.to(self.device)
+            
+            if X_tensor.dim() == 5:
+                X_tensor = X_tensor.squeeze(0)
+            elif X_tensor.dim() == 3:
+                X_tensor = X_tensor.unsqueeze(0)
+                
             outputs = self.model(X_tensor)
             _, predictions = torch.max(outputs, 1)
         return predictions.cpu().numpy()
