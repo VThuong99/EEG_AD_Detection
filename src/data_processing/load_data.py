@@ -92,11 +92,10 @@ def load_processed_data(duration: float, overlap: float, processed_path=PROCESSE
     subject_data = []
     targets = []
 
-    for filename in os.listdir(processed_path):
+    for filename in sorted(os.listdir(processed_path)):
         filepath = os.path.join(processed_path, filename)
         with open(filepath, 'rb') as file:
             data = pickle.load(file)
-            print(data['targets'])
             subject_data.append(data['subject_data'])
             targets.append(data['targets'])
 
