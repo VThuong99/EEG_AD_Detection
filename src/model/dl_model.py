@@ -29,6 +29,8 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
         for epoch in range(self.epochs):
             batch_losses = [] # List to store batch losses for current epoch
             for batch_X, batch_y in dataloader:
+                if batch_X.size(0) == 1: # Skip if batch_size=1, for conflict with BatchNorm1d()
+                    continue
                 batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
                 outputs = self.model(batch_X)
