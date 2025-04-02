@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
 
 from src.validation.metrics import accuracy, sensitivity, specificity, f1, precision # Assuming metrics.py is in src/validation
 
@@ -13,47 +14,23 @@ METRIC_FUNCTIONS = {
     'precision': precision
 }
 
-def train_prep(features, targets, exclude=None, flatten_final=True):
-    """ Prepares a list of feature arrays with corresponding labels in targets for training."""
-    total_subjects = len(targets)
-    targets_list = []
-    for i in range(total_subjects):
-        num_epochs = features[i].shape[0]
-        targets_list.append(targets[i] * np.ones(num_epochs))
-    if exclude is None:
-        features_array = np.concatenate(features)
-        targets_array = np.concatenate(targets_list)
-    else:
-        features_array = np.concatenate(features[:exclude] + features[exclude + 1:])
-        targets_array = np.concatenate(targets_list[:exclude] + targets_list[exclude + 1:])
-    if flatten_final:
-        features_array = features_array.reshape((features_array.shape[0], -1))
-    return features_array, targets_array
-
-def _train_prep(features, targets, exclude_indices=None, flatten_final=True):
+def _prepare_data(features, targets, include_indices=None, flatten_final=True):
     """
-    Prepare training data by excluding subjects specified by exclude_indices.
+    Prepare data by including subjects specified by include_indices.
     
     Args:
         features (list of np.array): Feature arrays for each subject.
         targets (list): Target label for each subject.
-        exclude_indices (list of int, optional): List of subject indices to exclude (for test).
+        include_indices (list of int): List of subject indices to include.
         flatten_final (bool): If True, reshape the data to 2D.
         
     Returns:
-        Tuple[np.array, np.array]: The concatenated training features and targets.
+        Tuple[np.array, np.array]: The concatenated features and targets for included subjects.
     """
-    all_features = []
-    all_targets = []
-    total_subjects = len(targets)
-    
-    for i in range(total_subjects):
-        if exclude_indices is not None and i in exclude_indices:
-            continue  # Skip test subjects
-        n_epochs = features[i].shape[0]
-        all_features.append(features[i])
-        all_targets.append(targets[i] * np.ones(n_epochs))
-    
+    if include_indices is None:
+        include_indices = range(len(features))
+    all_features = [features[i] for i in include_indices]
+    all_targets = [targets[i] * np.ones(features[i].shape[0]) for i in include_indices]
     features_array = np.concatenate(all_features)
     targets_array = np.concatenate(all_targets)
     
@@ -61,6 +38,37 @@ def _train_prep(features, targets, exclude_indices=None, flatten_final=True):
         features_array = features_array.reshape((features_array.shape[0], -1))
     
     return features_array, targets_array
+
+def _plot_history(history):
+    """
+    Plot training and validation loss/accuracy.
+    
+    Args:
+        history (dict): Dictionary containing 'train_loss', 'val_loss', 'train_acc', 'val_acc' lists.
+    """
+    epochs = range(1, len(history['train_loss']) + 1)
+    plt.figure(figsize=(12, 5))
+    
+    # Plot loss
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, history['train_loss'], 'b', label='Training loss')
+    plt.plot(epochs, history['val_loss'], 'r', label='Validation loss')
+    plt.title('Training and Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    
+    # Plot accuracy
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, history['train_acc'], 'b', label='Training accuracy')
+    plt.plot(epochs, history['val_acc'], 'r', label='Validation accuracy')
+    plt.title('Training and Validation Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.show()
 
 class LOSOCV:
     """Perform Leave-One-Subject-Out Cross-Validation."""
@@ -92,8 +100,7 @@ class LOSOCV:
         """
         n_subjects = len(features)
 
-        train_confusion_matrices = []
-        test_confusion_matrices = []
+        train_confusion_matrices, test_confusion_matrices = [], []
 
         if (self.n_folds == None):
             subject_indices = range(n_subjects)
@@ -102,15 +109,11 @@ class LOSOCV:
             subject_indices = rng.choice(n_subjects, size=self.n_folds, replace=False) # Generate from a uniform distribution
 
         # LOCOCV code
-        for fold_index, subject_index in enumerate(subject_indices): # Added fold_index for verbose output
+        for fold_index, subject_index in enumerate(subject_indices): 
             # Prepare training and testing data for this fold
-            train_X, train_y = train_prep(features, targets, exclude=subject_index, flatten_final=flatten_final)
-            if flatten_final:
-                test_X = features[subject_index].reshape(features[subject_index].shape[0], -1)
-            else:
-                test_X = features[subject_index]
-
-            test_y = targets[subject_index] * np.ones(features[subject_index].shape[0])
+            train_indices = [i for i in range(n_subjects) if i != subject_index]
+            train_X, train_y = _prepare_data(features, targets, train_indices, flatten_final)
+            test_X, test_y = _prepare_data(features, targets, [subject_index], flatten_final)
 
             if flatten_final:
                 scaler = StandardScaler()
@@ -136,13 +139,10 @@ class LOSOCV:
             train_confusion_matrices.append(train_cm)
             test_confusion_matrices.append(test_cm)
 
-            if verbose >= 1: # Print fold-wise information if verbose level is 1 or higher
+            if verbose >= 1:
                 print(f"\nFold {fold_index + 1}/{len(subject_indices)} - Subject {subject_index}:") # Added fold index and subject index
-                fold_train_metrics = {}
-                fold_test_metrics = {}
-                for metric in self.metrics:
-                    fold_train_metrics[metric] = self.METRIC_FUNCTIONS[metric](train_cm)
-                    fold_test_metrics[metric] = self.METRIC_FUNCTIONS[metric](test_cm)
+                fold_train_metrics = {m: self.METRIC_FUNCTIONS[m](train_confusion_matrices[-1]) for m in self.metrics}
+                fold_test_metrics = {m: self.METRIC_FUNCTIONS[m](test_confusion_matrices[-1]) for m in self.metrics}
                 print(f"  Train Metrics: {fold_train_metrics}")
                 print(f"  Test Metrics: {fold_test_metrics}")
 
@@ -154,87 +154,91 @@ class LOSOCV:
         # Calculate the metrics
         train_metrics = {}
         test_metrics = {}
-        for metric in self.metrics: #Loop through all of the strings in the metrics function
-            train_metrics[metric] = self.METRIC_FUNCTIONS[metric](train_confusion_matrix)
-            test_metrics[metric] = self.METRIC_FUNCTIONS[metric](test_confusion_matrix)
+        train_metrics = {m: self.METRIC_FUNCTIONS[m](train_cm) for m in self.metrics}
+        test_metrics = {m: self.METRIC_FUNCTIONS[m](test_cm) for m in self.metrics}
 
         return train_metrics, test_metrics 
     
-def subject_dependent_eval(model, features, targets, sub=['1', '2'], flatten_final=True, verbose=2):
+def subject_dependent_eval(model, features, targets, test=[1, 2], val=None, flatten_final=True, verbose=2, plot=False, patience=5):
     """
-    Perform subject-dependent evaluation.
+    Perform subject-dependent evaluation with early stopping and plotting.
     
-    Train the model on subjects not in the test list and evaluate on the subjects specified by `sub`.
+    Train the model on subjects not in the test or validation lists, validate on the validation subjects,
+    and evaluate on the test subjects. Supports early stopping based on validation loss.
     
     Args:
-        model: A model wrapper instance (e.g., DeepLearningModel) with fit and predict methods.
+        model: A model wrapper instance with fit and predict methods.
         features (list of np.array): List of feature arrays per subject.
             Each array is expected to have shape (n_epochs, T, B, C).
         targets (list): List of target labels per subject.
-        sub (list of str): List of subject IDs (as strings) to use for testing.
-            Assumes subject '1' corresponds to index 0, etc.
+        test (list of int): List of subject IDs to use for testing (1-based indexing).
+        val (list of int): List of subject IDs to use for validating (1-based indexing).
+            If None, no validation is performed.
         flatten_final (bool): If True, reshape data into 2D before training.
-            (Set to False if the model expects 4D input.)
         verbose (int): Verbosity level (0: silent, 1: summary, 2: detailed logs).
-    
+        plot (bool): If True, plot training and validation loss/accuracy.
     Returns:
         Tuple[dict, dict]: A tuple containing train metrics and test metrics.
     """
-    # Convert subject IDs in 'sub' to zero-based indices
-    test_indices = [int(s) - 1 for s in sub]
-    # Determine training subject indices (all indices not in test_indices)
-    train_indices = [i for i in range(len(features)) if i not in test_indices]
+    # Convert subject IDs in to zero-based indices
+    test_indices = [s - 1 for s in test]
+    val_indices = [s - 1 for s in val] if val else []
+
+    # Determine training indices (exclude test and validation subjects)
+    train_indices = [i for i in range(len(features)) if i not in test_indices and i not in val_indices]
     
-    # Prepare training data by excluding test subjects
-    train_X, train_y = _train_prep(features, targets, exclude_indices=test_indices, flatten_final=flatten_final)
-    
-    # Prepare test data by concatenating test subject features
-    test_list = []
-    test_targets_list = []
-    for i in test_indices:
-        test_list.append(features[i])
-        n_epochs = features[i].shape[0]
-        test_targets_list.append(targets[i] * np.ones(n_epochs))
-    test_X = np.concatenate(test_list)
-    test_y = np.concatenate(test_targets_list)
-    if flatten_final:
-        test_X = test_X.reshape((test_X.shape[0], -1))
-    
+    # Prepare training, validation, and test data
+    train_X, train_y = _prepare_data(features, targets, train_indices, flatten_final)
+    val_X, val_y = _prepare_data(features, targets, val_indices, flatten_final) if val else (None, None)
+    test_X, test_y = _prepare_data(features, targets, test_indices, flatten_final)    
+
     if verbose >= 1:
         print("Train set shape:", train_X.shape)
+        if val:
+            print("Validation set shape:", val_X.shape)
         print("Test set shape:", test_X.shape)
     
     # Normalize data if flattening is applied
     if flatten_final:
         scaler = StandardScaler()
         train_X = scaler.fit_transform(train_X)
+        if val:
+            val_X = scaler.transform(val_X)
         test_X = scaler.transform(test_X)
     
-    # Reset model parameters before training (if applicable)
-    # Here we iterate over the internal model modules.
+    # Reset model parameters before training
     for layer in model.model.modules():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
     
-    # Train the model on the training data
-    trained_model, epoch_losses = model.fit(train_X, train_y, calculate_epoch_loss=(verbose >= 2))
-    model = trained_model  # Update model reference
+    # Train the model with early stopping
+    trained_model, history = model.fit_with_validation(train_X, train_y, val_X, val_y, patience=patience, verbose=verbose)
+    model = trained_model  
     
-    # Make predictions on training and test data
+    # Make predictions 
     train_pred = model.predict(train_X)
     test_pred = model.predict(test_X)
+    val_pred = model.predict(val_X) if val else None
     
     # Compute confusion matrices
     labels = np.unique(targets)
     train_cm = confusion_matrix(train_y, train_pred, labels=labels)
     test_cm = confusion_matrix(test_y, test_pred, labels=labels)
+    val_cm = confusion_matrix(val_y, val_pred, labels=labels) if val else None
     
-    # Compute evaluation metrics using the provided metric functions
+    # Compute metrics 
     train_metrics = {metric: METRIC_FUNCTIONS[metric](train_cm) for metric in METRIC_FUNCTIONS}
     test_metrics = {metric: METRIC_FUNCTIONS[metric](test_cm) for metric in METRIC_FUNCTIONS}
+    val_metrics = {m: METRIC_FUNCTIONS[m](val_cm) for m in METRIC_FUNCTIONS} if val else None
     
     if verbose >= 1:
         print(f"Train Metrics: {train_metrics}")
+        if val:
+            print(f"Validation Metrics: {val_metrics}")
         print(f"Test Metrics: {test_metrics}")
+
+    # Plot training history if requested
+    if plot:
+        _plot_history(history)
     
     return train_metrics, test_metrics
