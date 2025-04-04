@@ -74,7 +74,7 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
         self.model.train()
 
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+        optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
 
         # Dataloader for training set
         dataset = torch.utils.data.TensorDataset(torch.tensor(X, dtype=torch.float32),

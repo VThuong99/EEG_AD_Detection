@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 
 from src.validation.metrics import accuracy, sensitivity, specificity, f1, precision # Assuming metrics.py is in src/validation
 
-# Define metric functions here if 'from src.validation.metrics import ...' causes issues
 METRIC_FUNCTIONS = {
     'accuracy': accuracy,
     'sensitivity': sensitivity,
