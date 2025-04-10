@@ -11,6 +11,11 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
         self.epochs = epochs
         self.batch_size = batch_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.num_gpus = torch.cuda.device_count()
+
+        if self.num_gpus > 1:
+            print(f"Using {self.num_gpus} GPUs with DataParallel")
+            self.model = nn.DataParallel(self.model)
 
     def fit(self, X, y, calculate_epoch_loss=False): 
         self.model.to(self.device)

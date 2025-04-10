@@ -153,8 +153,8 @@ class LOSOCV:
         # Calculate the metrics
         train_metrics = {}
         test_metrics = {}
-        train_metrics = {m: self.METRIC_FUNCTIONS[m](train_cm) for m in self.metrics}
-        test_metrics = {m: self.METRIC_FUNCTIONS[m](test_cm) for m in self.metrics}
+        train_metrics = {m: self.METRIC_FUNCTIONS[m](train_confusion_matrix) for m in self.metrics}
+        test_metrics = {m: self.METRIC_FUNCTIONS[m](test_confusion_matrix) for m in self.metrics}
 
         return train_metrics, test_metrics 
     
