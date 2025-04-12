@@ -60,6 +60,27 @@ class RbpFeature(FeatureExtractor):
         rbps = relative_band_power(psds, freqs, self.freq_bands)
         return rbps 
 
+class NoGammaRbpFeature(FeatureExtractor):
+    """Calculate the relative band power of the data for each subject, excluding gamma band."""
+
+    def __init__(self, sfreq=sfreq, fmin=0.5, fmax=45):
+        self.freq_bands_dict = {
+            'Delta': (0.5, 4),
+            'Theta': (4, 8),
+            'Alpha': (8, 13),
+            'Beta': (13, 25)
+        }
+        self.freq_bands = sorted(list(set(
+            freq for band in self.freq_bands_dict.values() for freq in band
+        )))
+        self.psd_feature = PsdFeature(sfreq=sfreq, fmin=fmin, fmax=fmax)
+
+    def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
+        psds = self.psd_feature.extract(data)
+        freqs = self.psd_feature.get_freqs()
+
+        rbps = relative_band_power(psds, freqs, self.freq_bands)
+        return rbps
 
 class SccFeature(FeatureExtractor):
     """ Calculate the spectral coherence connectivity of the data for each subject. """
@@ -110,10 +131,6 @@ class FlattenFeature:
         n_features = np.prod(features.shape[1:])
         
         return features.reshape(n_epochs, n_features)
-    
-import numpy as np
-import mne
-from src.data_processing.bandpower import relative_band_power  # nếu bạn có hàm này, hoặc bạn có thể tính theo cách dưới đây
 
 class DICE_NetFeature:
     """
@@ -151,7 +168,8 @@ class DICE_NetFeature:
 
     def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
         """
-        Extracts RBP features for DICE-Net.
+        Extracts RBP features for DICE-Net model.
+        Paper link: https://ieeexplore.ieee.org/document/10179900/
         
         Parameters:
             data (np.ndarray): Raw EEG data with shape (n_epochs, n_channels, n_samples).
@@ -167,21 +185,19 @@ class DICE_NetFeature:
         
         n_epochs, n_channels, n_samples = data.shape
         T = self.T
-        seg_length = n_samples // T  # assume integer division
+        seg_length = n_samples // T  
         B = len(self.freq_bands)
         features_all = []
 
-        # Loop qua các epoch
+        # Change 2D data in to 3D
         for epoch in range(n_epochs):
             epoch_data = data[epoch]  # shape: (n_channels, n_samples)
-            # Sẽ lưu đặc trưng cho epoch với shape (T, B, n_channels)
             features_epoch = np.zeros((T, B, n_channels))
             for t in range(T):
                 start = t * seg_length
                 end = start + seg_length
                 segment = epoch_data[:, start:end]  # shape: (n_channels, seg_length)
-                # Tính PSD cho từng kênh (mỗi hàng)
-                # mne.psd_array_welch yêu cầu input shape (n_channels, n_samples)
+
                 psds, freqs = mne.time_frequency.psd_array_welch(
                     segment,
                     sfreq=sfreq,
@@ -191,19 +207,16 @@ class DICE_NetFeature:
                     verbose=False
                 )
                 # psds: shape (n_channels, n_freqs)
-                # Tính RBP cho mỗi channel cho từng band:
                 for b_idx, (band, (f_low, f_high)) in enumerate(self.freq_bands.items()):
                     band_idx = np.where((freqs >= f_low) & (freqs <= f_high))[0]
-                    # Tổng PSD trong band cho mỗi channel
                     psd_band = psds[:, band_idx].sum(axis=1)
-                    # Tổng PSD từ fmin đến fmax cho mỗi channel
                     psd_total = psds.sum(axis=1) + 1e-8
                     rbp = psd_band / psd_total  # shape: (n_channels,)
                     features_epoch[t, b_idx, :] = rbp
             features_all.append(features_epoch)
         features_all = np.array(features_all)  # shape: (n_epochs, T, B, n_channels)
         return features_all
-
+    
 
 class FeaturePipeline:
     """Pipeline to run multiple feature extractors. """
