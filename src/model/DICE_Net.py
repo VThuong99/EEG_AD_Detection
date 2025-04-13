@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-##########################################
-# Helper Modules
-##########################################
+import math
 
 class DepthwiseConv2D(nn.Module):
     """
