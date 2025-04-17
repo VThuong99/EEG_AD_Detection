@@ -13,25 +13,30 @@ METRIC_FUNCTIONS = {
     'precision': precision
 }
 
-def _prepare_data(features, targets, indices, flatten_final, use_subject_normalization=True):
-    from sklearn.preprocessing import StandardScaler
-    X_list, y_list = [], []
-    for idx in indices:
-        subject_X = features[idx]
-        subject_y = targets[idx]
-        if use_subject_normalization:
-            scaler = StandardScaler()
-            subject_X = scaler.fit_transform(subject_X.reshape(-1, subject_X.shape[-1])).reshape(subject_X.shape)
-        X_list.append(subject_X)
-        # Broadcast scalar target to match number of epochs
-        if np.isscalar(subject_y):
-            subject_y = subject_y * np.ones(subject_X.shape[0], dtype=np.int32)
-        y_list.append(subject_y)
-    X = np.concatenate(X_list, axis=0)
-    y = np.concatenate(y_list, axis=0)
+def _prepare_data(features, targets, include_indices=None, flatten_final=True):
+    """
+    Prepare data by including subjects specified by include_indices.
+    
+    Args:
+        features (list of np.array): Feature arrays for each subject.
+        targets (list): Target label for each subject.
+        include_indices (list of int): List of subject indices to include.
+        flatten_final (bool): If True, reshape the data to 2D.
+        
+    Returns:
+        Tuple[np.array, np.array]: The concatenated features and targets for included subjects.
+    """
+    if include_indices is None:
+        include_indices = range(len(features))
+    all_features = [features[i] for i in include_indices]
+    all_targets = [targets[i] * np.ones(features[i].shape[0]) for i in include_indices]
+    features_array = np.concatenate(all_features)
+    targets_array = np.concatenate(all_targets)
+    
     if flatten_final:
-        X = X.reshape(X.shape[0], -1)
-    return X, y
+        features_array = features_array.reshape((features_array.shape[0], -1))
+    
+    return features_array, targets_array
 
 def _plot_history(history):
     """
@@ -65,66 +70,93 @@ def _plot_history(history):
     plt.show()
 
 class LOSOCV:
-    def __init__(self, model, metrics=None, n_folds=None, random_state=None, use_subject_normalization=False):
+    """Perform Leave-One-Subject-Out Cross-Validation."""
+    def __init__(self, model, metrics=None, n_folds=None, random_state=None):
+        """
+        Args:
+            model: An object with 'fit' and 'predict' methods.
+            metrics: A list of metric names (strings) to calculate.
+                Must be keys in the METRIC_FUNCTIONS dictionary.
+                Defaults to ['accuracy', 'sensitivity', 'specificity', 'f1'].
+            n_folds (int, optional): The number of folds to run the model on. Defaults to None for all runs
+            random_state (int, optional): The random state for reproducability. Defaults to None
+        """
         self.model = model
         self.metrics = metrics if metrics else ['accuracy', 'sensitivity', 'specificity', 'f1']
         self.n_folds = n_folds
         self.random_state = random_state
-        self.use_subject_normalization = use_subject_normalization
+
         self.METRIC_FUNCTIONS = METRIC_FUNCTIONS # Use the defined metric functions
 
-    def run(self, features, targets, flatten_final=True, verbose=0):
-        from sklearn.preprocessing import StandardScaler
-        from sklearn.metrics import confusion_matrix
+    def run(self, features, targets, flatten_final=True, verbose=0): # verbose now accepts integer levels
+        """ Performs the LOSO cross-validation.
+
+        Args:
+            features: List of feature arrays, one for each subject.
+            targets: List of target labels, one for each subject.
+            flatten_final (bool, optional): Whether to flatten the feature array. Defaults to True.
+            verbose (int, optional): Verbosity level. 0: No detailed output, 1: Fold metrics, 2: Fold metrics and epoch losses. Defaults to 0. # Updated docstring for verbose levels
+        """
         n_subjects = len(features)
+
         train_confusion_matrices, test_confusion_matrices = [], []
 
-        if self.n_folds is None:
+        if (self.n_folds == None):
             subject_indices = range(n_subjects)
         else:
             rng = np.random.default_rng(self.random_state)
-            subject_indices = rng.choice(n_subjects, size=self.n_folds, replace=False)
+            subject_indices = rng.choice(n_subjects, size=self.n_folds, replace=False) # Generate from a uniform distribution
 
-        for fold_index, subject_index in enumerate(subject_indices):
+        # LOCOCV code
+        for fold_index, subject_index in enumerate(subject_indices): 
+            # Prepare training and testing data for this fold
             train_indices = [i for i in range(n_subjects) if i != subject_index]
-            train_X, train_y = _prepare_data(features, targets, train_indices, flatten_final, self.use_subject_normalization)
-            test_X, test_y = _prepare_data(features, targets, [subject_index], flatten_final, self.use_subject_normalization)
+            train_X, train_y = _prepare_data(features, targets, train_indices, flatten_final)
+            test_X, test_y = _prepare_data(features, targets, [subject_index], flatten_final)
 
-            if flatten_final and not self.use_subject_normalization:
-                scaler = StandardScaler()
-                train_X = scaler.fit_transform(train_X)
-                test_X = scaler.transform(test_X)
+            # if flatten_final:
+            scaler = StandardScaler()
+            train_X = scaler.fit_transform(train_X)
+            test_X = scaler.transform(test_X)
 
             for layer in self.model.model.modules():
                 if hasattr(layer, 'reset_parameters'):
                     layer.reset_parameters()
 
-            trained_model, epoch_losses = self.model.fit(train_X, train_y, calculate_epoch_loss=(verbose >= 2))
-            self.model = trained_model
+            # Fit the model on the training data
+            trained_model, epoch_losses = self.model.fit(train_X, train_y, calculate_epoch_loss=(verbose >= 2)) 
+            self.model = trained_model # Update self.model with trained model for prediction
 
+            # Make predictions on training and testing data
             train_pred = self.model.predict(train_X)
             test_pred = self.model.predict(test_X)
 
-            labels = np.unique(np.concatenate([np.array([t] if np.isscalar(t) else t) for t in targets]))
+            # Calculate confusion matrices
+            labels = np.unique(targets)
             train_cm = confusion_matrix(train_y, train_pred, labels=labels)
             test_cm = confusion_matrix(test_y, test_pred, labels=labels)
             train_confusion_matrices.append(train_cm)
             test_confusion_matrices.append(test_cm)
 
             if verbose >= 1:
-                print(f"\nFold {fold_index + 1}/{len(subject_indices)} - Subject {subject_index}:")
-                fold_train_metrics = {m: self.METRIC_FUNCTIONS[m](train_cm) for m in self.metrics}
-                fold_test_metrics = {m: self.METRIC_FUNCTIONS[m](test_cm) for m in self.metrics}
+                print(f"\nFold {fold_index + 1}/{len(subject_indices)} - Subject {subject_index}:") # Added fold index and subject index
+                fold_train_metrics = {m: self.METRIC_FUNCTIONS[m](train_confusion_matrices[-1]) for m in self.metrics}
+                fold_test_metrics = {m: self.METRIC_FUNCTIONS[m](test_confusion_matrices[-1]) for m in self.metrics}
                 print(f"  Train Metrics: {fold_train_metrics}")
                 print(f"  Test Metrics: {fold_test_metrics}")
 
+
+        # Calculate the average metrics across all folds
         train_confusion_matrix = np.sum(train_confusion_matrices, axis=0)
         test_confusion_matrix = np.sum(test_confusion_matrices, axis=0)
 
+        # Calculate the metrics
+        train_metrics = {}
+        test_metrics = {}
         train_metrics = {m: self.METRIC_FUNCTIONS[m](train_confusion_matrix) for m in self.metrics}
         test_metrics = {m: self.METRIC_FUNCTIONS[m](test_confusion_matrix) for m in self.metrics}
 
-        return train_metrics, test_metrics
+        return train_metrics, test_metrics 
     
 def subject_dependent_eval(model, features, targets, test=[1, 2], val=None, flatten_final=True, verbose=2, plot=False, patience=5):
     """
