@@ -55,7 +55,7 @@ class PositionalEncoding(nn.Module):
             pe[:, 1::2] = torch.cos(position * div_term)  # Odd indices, same length as div_term
         else:
             # For odd d_model, the odd indices are one less than even indices
-            pe[:, 1::2] = torch.cos(position * div_term[:-1])
+            pe[:, 1::2] = torch.cos(position * div_term[:, :-1])
         pe = pe.unsqueeze(0)  # (1, max_len, d_model)
         self.register_buffer('pe', pe)
 
