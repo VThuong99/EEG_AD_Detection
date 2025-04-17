@@ -114,10 +114,10 @@ class LOSOCV:
             train_X, train_y = _prepare_data(features, targets, train_indices, flatten_final)
             test_X, test_y = _prepare_data(features, targets, [subject_index], flatten_final)
 
-            # if flatten_final:
-            scaler = StandardScaler()
-            train_X = scaler.fit_transform(train_X)
-            test_X = scaler.transform(test_X)
+            if flatten_final:
+                scaler = StandardScaler()
+                train_X = scaler.fit_transform(train_X)
+                test_X = scaler.transform(test_X)
 
             for layer in self.model.model.modules():
                 if hasattr(layer, 'reset_parameters'):
