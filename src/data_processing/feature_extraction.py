@@ -111,7 +111,7 @@ class MbpFeature(FeatureExtractor):
 class AbpFeature(FeatureExtractor):
     """Calculate the absolute band power (ABP) of the data for each subject with normalization options."""
     
-    def __init__(self, freq_bands=None, sfreq=sfreq, fmin=0.5, fmax=45, normalize='zscore'):
+    def __init__(self, freq_bands=None, sfreq=sfreq, fmin=0.5, fmax=45, normalize='minmax'):
         """
         Initialize the AbpFeature extractor.
         
@@ -124,6 +124,7 @@ class AbpFeature(FeatureExtractor):
         - normalize (str, optional): Normalization method. Options:
                                     - 'zscore': Z-score normalization per band.
                                     - 'relative': Normalize by total power (like RBP).
+                                    - 'minmax': Min-max scaling per band.
                                     - None: No normalization (raw ABP).
         """
         if freq_bands is None:
@@ -173,6 +174,24 @@ class AbpFeature(FeatureExtractor):
         total_power = np.sum(abps, axis=-1, keepdims=True)
         return abps / (total_power + 1e-8)
     
+    def _minmax_normalize(self, abps: np.ndarray) -> np.ndarray:
+        """
+        Apply min-max scaling to ABP per band.
+        
+        Parameters:
+        - abps (np.ndarray): ABP data with shape (n_epochs, n_channels, n_bands).
+        
+        Returns:
+        - abps_normalized (np.ndarray): Min-max scaled ABP.
+        """
+        abps_normalized = np.zeros_like(abps)
+        for band in range(abps.shape[-1]):
+            band_data = abps[:, :, band]
+            min_val = np.min(band_data)
+            max_val = np.max(band_data)
+            abps_normalized[:, :, band] = (band_data - min_val) / (max_val - min_val + 1e-8)
+        return abps_normalized
+    
     def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
         """
         Extract ABP features from EEG data with optional normalization.
@@ -197,6 +216,8 @@ class AbpFeature(FeatureExtractor):
             abps = self._zscore_normalize(abps)
         elif self.normalize == 'relative':
             abps = self._relative_normalize(abps)
+        elif self.normalize == 'minmax':
+            abps = self._minmax_normalize(abps)
         # If normalize=None, return raw ABP
         
         return abps
