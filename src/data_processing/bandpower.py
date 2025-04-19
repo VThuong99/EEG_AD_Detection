@@ -34,6 +34,34 @@ def absolute_band_power(psds,freqs,freq_bands,endpoints=freq_ind):
         absolute_bands_list.append(simpson(psds[...,indices[i]:indices[i+1]+1],x=freqs[indices[i]:indices[i+1]+1],axis=-1))
     return np.transpose(np.array(absolute_bands_list),(1,2,0))
 
+def mean_band_power(psds, freqs, freq_bands, endpoints=freq_ind):
+    """
+    Computes mean band power (average PSD) in each frequency band of each EEG channel of row in the psds array.
+
+    Parameters
+    ----------
+    psds : ndarray
+        Array of psds of shape (num_rows) x (num_channels) x len(freqs).
+    freqs : ndarray
+        1-D array of frequencies.
+    freq_bands : array_like
+        List of frequencies defining the boundaries of the frequency bands.
+    endpoints : 
+        Function used to match freq_bands to freqs.
+
+    Returns
+    -------
+    mbps: ndarray
+        Array of mean band power values of shape (num_rows) x (num_channels) x (len(freq_bands)-1).
+    """
+    indices = endpoints(freqs, freq_bands)
+    mean_bands_list = []
+    for i in range(len(indices)-1):
+        # Calculate mean PSD within the frequency band
+        mean_band = np.mean(psds[..., indices[i]:indices[i+1]+1], axis=-1)
+        mean_bands_list.append(mean_band)
+    return np.transpose(np.array(mean_bands_list), (1, 2, 0))
+
 def relative_band_power(psds,freqs,freq_bands,endpoints=freq_ind):
     """
     Computes relative band power in each frequency band of each EEG channel of row in the psds array.

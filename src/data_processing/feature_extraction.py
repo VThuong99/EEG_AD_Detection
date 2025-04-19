@@ -3,7 +3,7 @@ import mne
 from mne_connectivity import spectral_connectivity_epochs
 
 from config import sfreq, BANDS
-from src.data_processing.bandpower import relative_band_power
+from src.data_processing.bandpower import relative_band_power, mean_band_power, absolute_band_power
 
 class FeatureExtractor:
     """Base class for all feature extractors."""
@@ -59,6 +59,103 @@ class RbpFeature(FeatureExtractor):
         # Calculate relative band power
         rbps = relative_band_power(psds, freqs, self.freq_bands)
         return rbps 
+    
+class MbpFeature(FeatureExtractor):
+    """Calculate the mean band power (MBP) of the data for each subject."""
+    
+    def __init__(self, freq_bands=None, sfreq=sfreq, fmin=0.5, fmax=45):
+        """
+        Initialize the MbpFeature extractor.
+        
+        Parameters:
+        - freq_bands (dict, optional): Dictionary of frequency bands, e.g., {'Delta': (0.5, 4), ...}.
+                                      If None, default bands are used.
+        - sfreq (float): Sampling frequency.
+        - fmin (float): Minimum frequency for PSD calculation.
+        - fmax (float): Maximum frequency for PSD calculation.
+        """
+        if freq_bands is None:
+            self.freq_bands = {
+                'Delta': (0.5, 4),
+                'Theta': (4, 8),
+                'Alpha': (8, 13),
+                'Beta': (13, 25),
+                'Gamma': (25, 45)
+            }
+        else:
+            self.freq_bands = freq_bands
+        self.freq_bands_list = sorted(list(set(
+            freq for band in self.freq_bands.values() for freq in band
+        )))
+        self.psd_feature = PsdFeature(sfreq=sfreq, fmin=fmin, fmax=fmax)
+    
+    def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
+        """
+        Extract MBP features from EEG data.
+        
+        Parameters:
+        - data (np.ndarray): EEG data with shape (n_epochs, n_channels, n_samples).
+        - sfreq (float, optional): Sampling frequency. If None, uses default from config.
+        
+        Returns:
+        - mbps (np.ndarray): Mean band power with shape (n_epochs, n_channels, n_bands).
+        """
+        # Calculate PSD using PsdFeature
+        psds = self.psd_feature.extract(data)
+        freqs = self.psd_feature.get_freqs()
+        
+        # Calculate Mean Band Power using band_power.mean_band_power
+        mbps = mean_band_power(psds, freqs, self.freq_bands_list)
+        return mbps
+    
+class AbpFeature(FeatureExtractor):
+    """Calculate the absolute band power (ABP) of the data for each subject."""
+    
+    def __init__(self, freq_bands=None, sfreq=sfreq, fmin=0.5, fmax=45):
+        """
+        Initialize the AbpFeature extractor.
+        
+        Parameters:
+        - freq_bands (dict, optional): Dictionary of frequency bands, e.g., {'Delta': (0.5, 4), ...}.
+                                      If None, default bands are used.
+        - sfreq (float): Sampling frequency.
+        - fmin (float): Minimum frequency for PSD calculation.
+        - fmax (float): Maximum frequency for PSD calculation.
+        """
+        if freq_bands is None:
+            self.freq_bands = {
+                'Delta': (0.5, 4),
+                'Theta': (4, 8),
+                'Alpha': (8, 13),
+                'Beta': (13, 25),
+                'Gamma': (25, 45)
+            }
+        else:
+            self.freq_bands = freq_bands
+        self.freq_bands_list = sorted(list(set(
+            freq for band in self.freq_bands.values() for freq in band
+        )))
+        self.psd_feature = PsdFeature(sfreq=sfreq, fmin=fmin, fmax=fmax)
+    
+    def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
+        """
+        Extract ABP features from EEG data.
+        
+        Parameters:
+        - data (np.ndarray): EEG data with shape (n_epochs, n_channels, n_samples).
+        - sfreq (float, optional): Sampling frequency. If None, uses default from config.
+        
+        Returns:
+        - abps (np.ndarray): Absolute band power with shape (n_epochs, n_channels, n_bands).
+        """
+        # Calculate PSD using PsdFeature
+        psds = self.psd_feature.extract(data)
+        freqs = self.psd_feature.get_freqs()
+        
+        # Calculate Absolute Band Power using band_power.absolute_band_power
+        abps = absolute_band_power(psds, freqs, self.freq_bands_list)
+        return abps
+
 
 class NoGammaRbpFeature(FeatureExtractor):
     """Calculate the relative band power of the data for each subject, excluding gamma band."""
