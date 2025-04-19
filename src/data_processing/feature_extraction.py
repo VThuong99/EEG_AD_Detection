@@ -109,9 +109,9 @@ class MbpFeature(FeatureExtractor):
         return mbps
     
 class AbpFeature(FeatureExtractor):
-    """Calculate the absolute band power (ABP) of the data for each subject."""
+    """Calculate the absolute band power (ABP) of the data for each subject with normalization options."""
     
-    def __init__(self, freq_bands=None, sfreq=sfreq, fmin=0.5, fmax=45):
+    def __init__(self, freq_bands=None, sfreq=sfreq, fmin=0.5, fmax=45, normalize='zscore'):
         """
         Initialize the AbpFeature extractor.
         
@@ -121,6 +121,10 @@ class AbpFeature(FeatureExtractor):
         - sfreq (float): Sampling frequency.
         - fmin (float): Minimum frequency for PSD calculation.
         - fmax (float): Maximum frequency for PSD calculation.
+        - normalize (str, optional): Normalization method. Options:
+                                    - 'zscore': Z-score normalization per band.
+                                    - 'relative': Normalize by total power (like RBP).
+                                    - None: No normalization (raw ABP).
         """
         if freq_bands is None:
             self.freq_bands = {
@@ -136,17 +140,50 @@ class AbpFeature(FeatureExtractor):
             freq for band in self.freq_bands.values() for freq in band
         )))
         self.psd_feature = PsdFeature(sfreq=sfreq, fmin=fmin, fmax=fmax)
+        self.normalize = normalize
+    
+    def _zscore_normalize(self, abps: np.ndarray) -> np.ndarray:
+        """
+        Apply z-score normalization to ABP per band.
+        
+        Parameters:
+        - abps (np.ndarray): ABP data with shape (n_epochs, n_channels, n_bands).
+        
+        Returns:
+        - abps_normalized (np.ndarray): Z-score normalized ABP.
+        """
+        abps_normalized = np.zeros_like(abps)
+        for band in range(abps.shape[-1]):
+            band_data = abps[:, :, band]
+            mean = np.mean(band_data)
+            std = np.std(band_data)
+            abps_normalized[:, :, band] = (band_data - mean) / (std + 1e-8)
+        return abps_normalized
+    
+    def _relative_normalize(self, abps: np.ndarray) -> np.ndarray:
+        """
+        Normalize ABP by total power (similar to RBP).
+        
+        Parameters:
+        - abps (np.ndarray): ABP data with shape (n_epochs, n_channels, n_bands).
+        
+        Returns:
+        - abps_normalized (np.ndarray): Relative power normalized ABP.
+        """
+        total_power = np.sum(abps, axis=-1, keepdims=True)
+        return abps / (total_power + 1e-8)
     
     def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
         """
-        Extract ABP features from EEG data.
+        Extract ABP features from EEG data with optional normalization.
         
         Parameters:
         - data (np.ndarray): EEG data with shape (n_epochs, n_channels, n_samples).
         - sfreq (float, optional): Sampling frequency. If None, uses default from config.
         
         Returns:
-        - abps (np.ndarray): Absolute band power with shape (n_epochs, n_channels, n_bands).
+        - abps (np.ndarray): Absolute band power with shape (n_epochs, n_channels, n_bands),
+                            optionally normalized.
         """
         # Calculate PSD using PsdFeature
         psds = self.psd_feature.extract(data)
@@ -154,6 +191,14 @@ class AbpFeature(FeatureExtractor):
         
         # Calculate Absolute Band Power using band_power.absolute_band_power
         abps = absolute_band_power(psds, freqs, self.freq_bands_list)
+        
+        # Apply normalization if specified
+        if self.normalize == 'zscore':
+            abps = self._zscore_normalize(abps)
+        elif self.normalize == 'relative':
+            abps = self._relative_normalize(abps)
+        # If normalize=None, return raw ABP
+        
         return abps
 
 
