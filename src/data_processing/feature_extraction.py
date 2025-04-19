@@ -176,20 +176,21 @@ class AbpFeature(FeatureExtractor):
     
     def _minmax_normalize(self, abps: np.ndarray) -> np.ndarray:
         """
-        Apply min-max scaling to ABP per band.
+        Apply band-wise min-max scaling to ABP (across bands for each epoch and channel).
         
         Parameters:
         - abps (np.ndarray): ABP data with shape (n_epochs, n_channels, n_bands).
         
         Returns:
-        - abps_normalized (np.ndarray): Min-max scaled ABP.
+        - abps_normalized (np.ndarray): Band-wise min-max scaled ABP.
         """
         abps_normalized = np.zeros_like(abps)
-        for band in range(abps.shape[-1]):
-            band_data = abps[:, :, band]
-            min_val = np.min(band_data)
-            max_val = np.max(band_data)
-            abps_normalized[:, :, band] = (band_data - min_val) / (max_val - min_val + 1e-8)
+        for i in range(abps.shape[0]):  # Each epoch
+            for j in range(abps.shape[1]):  # Each kênh
+                sample = abps[i, j, :]
+                min_val = np.min(sample)
+                max_val = np.max(sample)
+                abps_normalized[i, j, :] = (sample - min_val) / (max_val - min_val + 1e-8)
         return abps_normalized
     
     def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
