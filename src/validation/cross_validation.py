@@ -82,6 +82,8 @@ class LOSOCV:
             random_state (int, optional): The random state for reproducability. Defaults to None
         """
         self.model = model
+        self.model_class = model.__class__ if not hasattr(model, 'model') else None
+        self.model_params = model.get_params() if not hasattr(model, 'model') and hasattr(model, 'get_params') else {}
         self.metrics = metrics if metrics else ['accuracy', 'sensitivity', 'specificity', 'f1']
         self.n_folds = n_folds
         self.random_state = random_state
@@ -127,6 +129,9 @@ class LOSOCV:
                             layer.reset_parameters()
                 except AttributeError:
                     pass  
+            else:  # ML
+                if self.model_class:
+                    self.model = self.model_class(**self.model_params)
 
             if hasattr(self.model, 'fit_with_validation') or hasattr(self.model, 'model'):  # DL
                 trained_model, history = self.model.fit(train_X, train_y, calculate_epoch_loss=(verbose >= 2))
