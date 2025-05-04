@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import mne
 from mne_connectivity import spectral_connectivity_epochs
 
@@ -186,7 +187,7 @@ class AbpFeature(FeatureExtractor):
         """
         abps_normalized = np.zeros_like(abps)
         for i in range(abps.shape[0]):  # Each epoch
-            for j in range(abps.shape[1]):  # Each kênh
+            for j in range(abps.shape[1]):  # Each channel
                 sample = abps[i, j, :]
                 min_val = np.min(sample)
                 max_val = np.max(sample)
@@ -223,29 +224,6 @@ class AbpFeature(FeatureExtractor):
         
         return abps
 
-
-class NoGammaRbpFeature(FeatureExtractor):
-    """Calculate the relative band power of the data for each subject, excluding gamma band."""
-
-    def __init__(self, sfreq=sfreq, fmin=0.5, fmax=45):
-        self.freq_bands_dict = {
-            'Delta': (0.5, 4),
-            'Theta': (4, 8),
-            'Alpha': (8, 13),
-            'Beta': (13, 25)
-        }
-        self.freq_bands = sorted(list(set(
-            freq for band in self.freq_bands_dict.values() for freq in band
-        )))
-        self.psd_feature = PsdFeature(sfreq=sfreq, fmin=fmin, fmax=fmax)
-
-    def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
-        psds = self.psd_feature.extract(data)
-        freqs = self.psd_feature.get_freqs()
-
-        rbps = relative_band_power(psds, freqs, self.freq_bands)
-        return rbps
-
 class SccFeature(FeatureExtractor):
     """ Calculate the spectral coherence connectivity of the data for each subject. """
 
@@ -276,6 +254,72 @@ class SccFeature(FeatureExtractor):
     
     def get_ch_names(self):
         return self.ch_names
+    
+class STFTFeature(FeatureExtractor):
+    def __init__(self, sfreq=500, window_duration=1.0, hop_fraction=0.5, n_fft=None, window='hamming', device='cpu'):
+        """
+        Extract STFT features from EEG signals.
+
+        Args:
+            sfreq (float): Sampling frequency (Hz), default is 500.
+            window_duration (float): Duration of the STFT window in seconds, default is 1.0.
+            hop_fraction (float): Overlap fraction between consecutive windows, default is 0.5.
+            n_fft (int, optional): Number of FFT points, default is equal to window size.
+            window (str): Type of window to apply ('hamming', 'hann'), default is 'hamming'.
+            device (str): Computation device ('cpu' or 'cuda'), default is 'cpu'.
+        """
+        self.sfreq = sfreq
+        self.window_size = int(window_duration * sfreq)
+        self.hop_size = int(self.window_size * hop_fraction)
+        self.n_fft = n_fft if n_fft is not None else self.window_size
+        self.window = window
+        self.device = device
+        
+        # Create window tensor
+        if self.window == 'hamming':
+            self.window_tensor = torch.hamming_window(self.window_size).to(self.device)
+        elif self.window == 'hann':
+            self.window_tensor = torch.hann_window(self.window_size).to(self.device)
+        else:
+            raise ValueError(f"Unsupported window type: {self.window}")
+    
+    def extract(self, data):
+        """
+        Extract STFT features from EEG signals.
+
+        Args:
+            data (torch.Tensor): EEG signals with shape (batch_size, n_channels, segment_length).
+
+        Returns:
+            torch.Tensor: Magnitude spectrogram with shape (batch_size, n_channels, n_freqs, n_times).
+        """
+        if isinstance(data, np.ndarray):
+            data = torch.from_numpy(data)
+        data = data.to(self.device)
+        batch_size, n_channels, segment_length = data.shape
+        
+        # Reshape to (batch_size * n_channels, segment_length)
+        data = data.view(-1, segment_length)
+        
+        # Compute STFT
+        stft = torch.stft(data, 
+                          n_fft=self.n_fft,
+                          hop_length=self.hop_size,
+                          win_length=self.window_size,
+                          window=self.window_tensor,
+                          center=True,
+                          pad_mode='reflect',
+                          normalized=False,
+                          onesided=True,
+                          return_complex=True)
+        
+        # Compute magnitude
+        magnitude = torch.abs(stft)
+        
+        # Reshape back to (batch_size, n_channels, n_freqs, n_times)
+        magnitude = magnitude.view(batch_size, n_channels, magnitude.shape[1], magnitude.shape[2])
+        return magnitude
+
     
 class MeanFeature(FeatureExtractor):
     """Calculates the mean of the data for each subject."""
