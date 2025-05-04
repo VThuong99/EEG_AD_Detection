@@ -283,7 +283,7 @@ class STFTFeature(FeatureExtractor):
         else:
             raise ValueError(f"Unsupported window type: {self.window}")
     
-    def extract(self, data):
+    def extract(self, data, sfreq=None):
         """
         Extract STFT features from EEG signals.
 
