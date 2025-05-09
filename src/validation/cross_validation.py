@@ -1,9 +1,10 @@
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-from src.validation.metrics import accuracy, sensitivity, specificity, f1, precision # Assuming metrics.py is in src/validation
+from src.validation.metrics import accuracy, sensitivity, specificity, f1, precision 
 
 METRIC_FUNCTIONS = {
     'accuracy': accuracy,
@@ -38,6 +39,45 @@ def _prepare_data(features, targets, include_indices=None, flatten_final=True):
     
     return features_array, targets_array
 
+def _normalize_data(train_X, val_X=None, test_X=None, flatten_final=True):
+    """
+    Normalize data using StandardScaler.
+    
+    Args:
+        train_X (np.array): Training features.
+        val_X (np.array, optional): Validation features.
+        test_X (np.array, optional): Test features.
+        flatten_final (bool): If True, apply normalization.
+        
+    Returns:
+        Tuple[np.array, np.array, np.array]: Normalized train, validation, and test features.
+    """
+    if not flatten_final:
+        return train_X, val_X, test_X
+    
+    scaler = StandardScaler()
+    train_X = scaler.fit_transform(train_X)
+    if val_X is not None:
+        val_X = scaler.transform(val_X)
+    if test_X is not None:
+        test_X = scaler.transform(test_X)
+    
+    return train_X, val_X, test_X
+
+def _compute_metrics(confusion_matrix, metrics, metric_functions=METRIC_FUNCTIONS):
+    """
+    Compute metrics from a confusion matrix.
+    
+    Args:
+        confusion_matrix (np.array): Confusion matrix.
+        metrics (list): List of metric names to compute.
+        metric_functions (dict): Dictionary of metric functions.
+        
+    Returns:
+        dict: Dictionary of metric names and their values.
+    """
+    return {m: metric_functions[m](confusion_matrix) for m in metrics}
+
 def _plot_history(history):
     """
     Plot training and validation loss/accuracy.
@@ -69,45 +109,97 @@ def _plot_history(history):
     plt.tight_layout()
     plt.show()
 
-class LOSOCV:
-    """Perform Leave-One-Subject-Out Cross-Validation."""
-    def __init__(self, model, metrics=None, n_folds=None, random_state=None):
+def _reset_model(model):
+    """
+    Reset model parameters if applicable.
+    
+    Args:
+        model: Model instance.
+        
+    Returns:
+        Model instance with reset parameters.
+    """
+    if hasattr(model, 'model'): # is Pytorch model?
+        try:
+            for layer in model.model.modules():
+                if hasattr(layer, 'reset_parameters'):
+                    layer.reset_parameters()
+        except AttributeError:
+            pass
+    elif hasattr(model, '__class__') and hasattr(model, 'get_params'): # is Scikit-learn model?
+        model_class = model.__class__
+        model_params = model.get_params()
+        model = model_class(**model_params)
+    return model
+
+class BaseCV:
+    """Base class for cross-validation methods."""
+    def __init__(self, model, metrics=None, random_state=None):
         """
         Args:
             model: An object with 'fit' and 'predict' methods.
-            metrics: A list of metric names (strings) to calculate.
-                Must be keys in the METRIC_FUNCTIONS dictionary.
-                Defaults to ['accuracy', 'sensitivity', 'specificity', 'f1'].
-            n_folds (int, optional): The number of folds to run the model on. Defaults to None for all runs
-            random_state (int, optional): The random state for reproducability. Defaults to None
+            metrics (list): List of metric names to calculate.
+            random_state (int, optional): Random state for reproducibility.
         """
+        if metrics and not all(m in METRIC_FUNCTIONS for m in metrics):
+            raise ValueError(f"Metrics must be in {list(METRIC_FUNCTIONS.keys())}")
         self.model = model
-        self.model_class = model.__class__ if not hasattr(model, 'model') else None
-        self.model_params = model.get_params() if not hasattr(model, 'model') and hasattr(model, 'get_params') else {}
         self.metrics = metrics if metrics else ['accuracy', 'sensitivity', 'specificity', 'f1']
-        self.n_folds = n_folds
         self.random_state = random_state
+        self.METRIC_FUNCTIONS = METRIC_FUNCTIONS
 
-        self.METRIC_FUNCTIONS = METRIC_FUNCTIONS # Use the defined metric functions
-
-    def run(self, features, targets, flatten_final=True, verbose=0): # verbose now accepts integer levels
-        """ Performs the LOSO cross-validation.
-
+    def _train_and_evaluate(self, train_X, train_y, val_X, val_y, test_X, test_y, labels, flatten_final, verbose, patience=None):
+        """
+        Train model and evaluate on train, validation, and test sets.
+        
         Args:
-            features: List of feature arrays, one for each subject.
-            targets: List of target labels, one for each subject.
-            flatten_final (bool, optional): Whether to flatten the feature array. Defaults to True.
-            verbose (int, optional): Verbosity level. 0: No detailed output, 1: Fold metrics, 2: Fold metrics and epoch losses. Defaults to 0. # Updated docstring for verbose levels
+            train_X, train_y: Training data.
+            val_X, val_y: Validation data (optional).
+            test_X, test_y: Test data.
+            labels: Unique target labels.
+            flatten_final (bool): If True, normalize data.
+            verbose (int): Verbosity level.
+            patience (int, optional): Patience for early stopping.
+            
+        Returns:
+            Tuple: Train and test confusion matrices, history (if applicable).
+        """
+        train_X, val_X, test_X = _normalize_data(train_X, val_X, test_X, flatten_final)
+        self.model = _reset_model(self.model)
+        
+        history = None
+        if hasattr(self.model, 'fit_with_validation') and (val_X is not None or patience):
+            self.model, history = self.model.fit_with_validation(
+                train_X, train_y, val_X, val_y, patience=patience, verbose=(verbose >= 2)
+            )
+        else:
+            self.model.fit(train_X, train_y)
+        
+        train_pred = self.model.predict(train_X)
+        test_pred = self.model.predict(test_X)
+        
+        train_cm = confusion_matrix(train_y, train_pred, labels=labels)
+        test_cm = confusion_matrix(test_y, test_pred, labels=labels)
+        
+        return train_cm, test_cm, history
+
+class LOSOCV(BaseCV):
+    """Perform Leave-One-Subject-Out Cross-Validation."""
+    def __init__(self, model, metrics=None, n_folds=None, random_state=None):
+        super().__init__(model, metrics, random_state)
+        self.n_folds = n_folds
+
+    def run(self, features, targets, flatten_final=True, verbose=0, plot=False): 
+        """ 
+        Performs the LOSO cross-validation.
         """
         n_subjects = len(features)
+        subject_indices = range(n_subjects) if self.n_folds is None else \
+            np.random.default_rng(self.random_state).choice(n_subjects, size=self.n_folds, replace=False)
 
+        labels = np.unique(targets)
         train_confusion_matrices, test_confusion_matrices = [], []
-
-        if (self.n_folds == None):
-            subject_indices = range(n_subjects)
-        else:
-            rng = np.random.default_rng(self.random_state)
-            subject_indices = rng.choice(n_subjects, size=self.n_folds, replace=False) # Generate from a uniform distribution
+        histories = []
 
         # LOCOCV code
         for fold_index, subject_index in enumerate(subject_indices): 
@@ -116,140 +208,141 @@ class LOSOCV:
             train_X, train_y = _prepare_data(features, targets, train_indices, flatten_final)
             test_X, test_y = _prepare_data(features, targets, [subject_index], flatten_final)
 
-            if flatten_final:
-                scaler = StandardScaler()
-                train_X = scaler.fit_transform(train_X)
-                test_X = scaler.transform(test_X)
-
-            # Fit the model on the training data
-            if hasattr(self.model, 'model'):  
-                try:
-                    for layer in self.model.model.modules():
-                        if hasattr(layer, 'reset_parameters'):
-                            layer.reset_parameters()
-                except AttributeError:
-                    pass  
-            else:  # ML
-                if self.model_class:
-                    self.model = self.model_class(**self.model_params)
-
-            if hasattr(self.model, 'fit_with_validation') or hasattr(self.model, 'model'):  # DL
-                trained_model, history = self.model.fit(train_X, train_y, calculate_epoch_loss=(verbose >= 2))
-                self.model = trained_model
-            else:  # ML
-                self.model.fit(train_X, train_y)
-
-            # Make predictions on training and testing data
-            train_pred = self.model.predict(train_X)
-            test_pred = self.model.predict(test_X)
-
-            # Calculate confusion matrices
-            labels = np.unique(targets)
-            train_cm = confusion_matrix(train_y, train_pred, labels=labels)
-            test_cm = confusion_matrix(test_y, test_pred, labels=labels)
+            train_cm, test_cm, history = self._train_and_evaluate(
+                train_X, train_y, None, None, test_X, test_y, labels, flatten_final, verbose
+            )
+            
             train_confusion_matrices.append(train_cm)
             test_confusion_matrices.append(test_cm)
-
+            if history:
+                histories.append(history)
+            
             if verbose >= 1:
-                print(f"\nFold {fold_index + 1}/{len(subject_indices)} - Subject {subject_index}:") # Added fold index and subject index
-                fold_train_metrics = {m: self.METRIC_FUNCTIONS[m](train_confusion_matrices[-1]) for m in self.metrics}
-                fold_test_metrics = {m: self.METRIC_FUNCTIONS[m](test_confusion_matrices[-1]) for m in self.metrics}
-                print(f"  Train Metrics: {fold_train_metrics}")
-                print(f"  Test Metrics: {fold_test_metrics}")
-
-
-        # Calculate the average metrics across all folds
-        train_confusion_matrix = np.sum(train_confusion_matrices, axis=0)
-        test_confusion_matrix = np.sum(test_confusion_matrices, axis=0)
-
-        # Calculate the metrics
-        train_metrics = {}
-        test_metrics = {}
-        train_metrics = {m: self.METRIC_FUNCTIONS[m](train_confusion_matrix) for m in self.metrics}
-        test_metrics = {m: self.METRIC_FUNCTIONS[m](test_confusion_matrix) for m in self.metrics}
-
-        return train_metrics, test_metrics 
+                print(f"\nFold {fold_index + 1}/{len(subject_indices)} - Subject {subject_index}:")
+                print(f"  Train Metrics: {_compute_metrics(train_cm, self.metrics)}")
+                print(f"  Test Metrics: {_compute_metrics(test_cm, self.metrics)}")
+        
+            total_train_cm = np.sum(train_confusion_matrices, axis=0)
+            total_test_cm = np.sum(test_confusion_matrices, axis=0)
+            
+            train_metrics = _compute_metrics(total_train_cm, self.metrics)
+            test_metrics = _compute_metrics(total_test_cm, self.metrics)
+            
+            if plot and histories:
+                avg_history = {
+                    'train_loss': np.mean([h['train_loss'] for h in histories], axis=0).tolist(),
+                    'val_loss': np.mean([h['val_loss'] for h in histories], axis=0).tolist(),
+                    'train_acc': np.mean([h['train_acc'] for h in histories], axis=0).tolist(),
+                    'val_acc': np.mean([h['val_acc'] for h in histories], axis=0).tolist()
+                }
+                _plot_history(avg_history, 'losocv_history.png')
+            
+            return train_metrics, test_metrics
     
+class MCCV(BaseCV):
+    """Perform Monte-Carlo Cross-Validation with subject-dependent settings."""
+    def __init__(self, model, metrics=None, n_iter=10, test_size=0.2, val_size=0.2, random_state=None, patience=5):
+        super().__init__(model, metrics, random_state)
+        if not (0 < test_size < 1) or not (0 < val_size < 1):
+            raise ValueError("test_size and val_size must be between 0 and 1")
+        self.n_iter = n_iter
+        self.test_size = test_size
+        self.val_size = val_size
+        self.patience = patience
+
+    def run(self, features, targets, flatten_final=True, verbose=0, plot=False):
+        """Performs MCCV with subject-dependent splits."""
+        n_subjects = len(features)
+        subject_indices = np.arange(n_subjects)
+        train_confusion_matrices, test_confusion_matrices = [], []
+        histories = []
+        
+        np.random.seed(self.random_state)
+        labels = np.unique(targets)
+        
+        for iter in range(self.n_iter):
+            train_val_indices, test_indices = train_test_split(subject_indices, test_size=self.test_size, random_state=self.random_state)
+            val_proportion = self.val_size / (1 - self.test_size)
+            train_indices, val_indices = train_test_split(train_val_indices, test_size=val_proportion, random_state=self.random_state)
+            
+            train_X, train_y = _prepare_data(features, targets, train_indices, flatten_final)
+            val_X, val_y = _prepare_data(features, targets, val_indices, flatten_final)
+            test_X, test_y = _prepare_data(features, targets, test_indices, flatten_final)
+            
+            train_cm, test_cm, history = self._train_and_evaluate(
+                train_X, train_y, val_X, val_y, test_X, test_y, labels, flatten_final, verbose, self.patience
+            )
+            
+            train_confusion_matrices.append(train_cm)
+            test_confusion_matrices.append(test_cm)
+            if history:
+                histories.append(history)
+            
+            if verbose >= 1:
+                print(f"\nIteration {iter + 1}/{self.n_iter}:")
+                print(f"  Train Metrics: {_compute_metrics(train_cm, self.metrics)}")
+                print(f"  Test Metrics: {_compute_metrics(test_cm, self.metrics)}")
+        
+        total_train_cm = np.sum(train_confusion_matrices, axis=0)
+        total_test_cm = np.sum(test_confusion_matrices, axis=0)
+        
+        train_metrics = _compute_metrics(total_train_cm, self.metrics)
+        test_metrics = _compute_metrics(total_test_cm, self.metrics)
+        
+        if plot and histories:
+            avg_history = {
+                'train_loss': np.mean([h['train_loss'] for h in histories], axis=0).tolist(),
+                'val_loss': np.mean([h['val_loss'] for h in histories], axis=0).tolist(),
+                'train_acc': np.mean([h['train_acc'] for h in histories], axis=0).tolist(),
+                'val_acc': np.mean([h['val_acc'] for h in histories], axis=0).tolist()
+            }
+            _plot_history(avg_history, 'mccv_history.png')
+        
+        return train_metrics, test_metrics
+
 def subject_dependent_eval(model, features, targets, test=[1, 2], val=None, flatten_final=True, verbose=2, plot=False, patience=5):
     """
     Perform subject-dependent evaluation with early stopping and plotting.
-    
-    Train the model on subjects not in the test or validation lists, validate on the validation subjects,
-    and evaluate on the test subjects. Supports early stopping based on validation loss.
-    
-    Args:
-        model: A model wrapper instance with fit and predict methods.
-        features (list of np.array): List of feature arrays per subject.
-            Each array is expected to have shape (n_epochs, T, B, C).
-        targets (list): List of target labels per subject.
-        test (list of int): List of subject IDs to use for testing (1-based indexing).
-        val (list of int): List of subject IDs to use for validating (1-based indexing).
-            If None, no validation is performed.
-        flatten_final (bool): If True, reshape data into 2D before training.
-        verbose (int): Verbosity level (0: silent, 1: summary, 2: detailed logs).
-        plot (bool): If True, plot training and validation loss/accuracy.
-    Returns:
-        Tuple[dict, dict]: A tuple containing train metrics and test metrics.
     """
-    # Convert subject IDs in to zero-based indices
+    if not all(1 <= s <= len(features) for s in test) or (val and not all(1 <= s <= len(features) for s in val)):
+        raise ValueError("Test and validation indices must be valid subject IDs")
+    
     test_indices = [s - 1 for s in test]
     val_indices = [s - 1 for s in val] if val else []
-
-    # Determine training indices (exclude test and validation subjects)
     train_indices = [i for i in range(len(features)) if i not in test_indices and i not in val_indices]
     
-    # Prepare training, validation, and test data
     train_X, train_y = _prepare_data(features, targets, train_indices, flatten_final)
     val_X, val_y = _prepare_data(features, targets, val_indices, flatten_final) if val else (None, None)
-    test_X, test_y = _prepare_data(features, targets, test_indices, flatten_final)    
-
+    test_X, test_y = _prepare_data(features, targets, test_indices, flatten_final)
+    
     if verbose >= 1:
         print("Train set shape:", train_X.shape)
         if val:
             print("Validation set shape:", val_X.shape)
         print("Test set shape:", test_X.shape)
     
-    # Normalize data if flattening is applied
-    if flatten_final:
-        scaler = StandardScaler()
-        train_X = scaler.fit_transform(train_X)
-        if val:
-            val_X = scaler.transform(val_X)
-        test_X = scaler.transform(test_X)
-    
-    # Reset model parameters before training
-    for layer in model.model.modules():
-        if hasattr(layer, 'reset_parameters'):
-            layer.reset_parameters()
-    
-    # Train the model with early stopping
-    trained_model, history = model.fit_with_validation(train_X, train_y, val_X, val_y, patience=patience, verbose=verbose)
-    model = trained_model  
-    
-    # Make predictions 
-    train_pred = model.predict(train_X)
-    test_pred = model.predict(test_X)
-    val_pred = model.predict(val_X) if val else None
-    
-    # Compute confusion matrices
     labels = np.unique(targets)
-    train_cm = confusion_matrix(train_y, train_pred, labels=labels)
-    test_cm = confusion_matrix(test_y, test_pred, labels=labels)
-    val_cm = confusion_matrix(val_y, val_pred, labels=labels) if val else None
+    base_cv = BaseCV(model, METRIC_FUNCTIONS.keys())  # Use all metrics for subject-dependent eval
+    train_cm, test_cm, history = base_cv._train_and_evaluate(
+        train_X, train_y, val_X, val_y, test_X, test_y, labels, flatten_final, verbose, patience
+    )
     
-    # Compute metrics 
-    train_metrics = {metric: METRIC_FUNCTIONS[metric](train_cm) for metric in METRIC_FUNCTIONS}
-    test_metrics = {metric: METRIC_FUNCTIONS[metric](test_cm) for metric in METRIC_FUNCTIONS}
-    val_metrics = {m: METRIC_FUNCTIONS[m](val_cm) for m in METRIC_FUNCTIONS} if val else None
+    val_cm = None
+    if val_X is not None:
+        val_pred = model.predict(val_X)
+        val_cm = confusion_matrix(val_y, val_pred, labels=labels)
+    
+    train_metrics = _compute_metrics(train_cm, METRIC_FUNCTIONS.keys())
+    test_metrics = _compute_metrics(test_cm, METRIC_FUNCTIONS.keys())
+    val_metrics = _compute_metrics(val_cm, METRIC_FUNCTIONS.keys()) if val_cm is not None else None
     
     if verbose >= 1:
         print(f"Train Metrics: {train_metrics}")
-        if val:
+        if val_metrics:
             print(f"Validation Metrics: {val_metrics}")
         print(f"Test Metrics: {test_metrics}")
-
-    # Plot training history if requested
-    if plot:
-        _plot_history(history)
+    
+    if plot and history:
+        _plot_history(history, 'subject_dependent_history.png')
     
     return train_metrics, test_metrics
