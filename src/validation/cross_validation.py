@@ -258,13 +258,14 @@ class MCCV(BaseCV):
         histories = []
         test_indices_per_fold = []
         
-        np.random.seed(self.random_state)
+        rng = np.random.default_rng(self.random_state)
         labels = np.unique(targets)
         
         for iter in range(self.n_iter):
-            train_val_indices, test_indices = train_test_split(subject_indices, test_size=self.test_size, random_state=self.random_state)
+            iter_seed = rng.integers(0, 10000)
+            train_val_indices, test_indices = train_test_split(subject_indices, test_size=self.test_size, random_state=iter_seed)
             val_proportion = self.val_size / (1 - self.test_size)
-            train_indices, val_indices = train_test_split(train_val_indices, test_size=val_proportion, random_state=self.random_state)
+            train_indices, val_indices = train_test_split(train_val_indices, test_size=val_proportion, random_state=iter_seed)
             
             train_X, train_y = _prepare_data(features, targets, train_indices, flatten_final)
             val_X, val_y = _prepare_data(features, targets, val_indices, flatten_final)
