@@ -256,6 +256,7 @@ class MCCV(BaseCV):
         subject_indices = np.arange(n_subjects)
         train_confusion_matrices, test_confusion_matrices = [], []
         histories = []
+        test_indices_per_fold = []
         
         np.random.seed(self.random_state)
         labels = np.unique(targets)
@@ -275,11 +276,13 @@ class MCCV(BaseCV):
             
             train_confusion_matrices.append(train_cm)
             test_confusion_matrices.append(test_cm)
+            test_indices_per_fold.append(test_indices.tolist())
             if history:
                 histories.append(history)
             
             if verbose >= 1:
                 print(f"\nIteration {iter + 1}/{self.n_iter}:")
+                print(f"  Test Subjects: {test_indices}")
                 print(f"  Train Metrics: {_compute_metrics(train_cm, self.metrics)}")
                 print(f"  Test Metrics: {_compute_metrics(test_cm, self.metrics)}")
         
@@ -298,7 +301,7 @@ class MCCV(BaseCV):
             }
             _plot_history(avg_history, 'mccv_history.png')
         
-        return train_metrics, test_metrics
+        return train_metrics, test_metrics, test_indices_per_fold
 
 def subject_dependent_eval(model, features, targets, test=[1, 2], val=None, flatten_final=True, verbose=2, plot=False, patience=5):
     """
