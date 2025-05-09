@@ -301,7 +301,7 @@ class MCCV(BaseCV):
             }
             _plot_history(avg_history, 'mccv_history.png')
         
-        return train_metrics, test_metrics, test_indices_per_fold
+        return train_metrics, test_metrics
 
 def subject_dependent_eval(model, features, targets, test=[1, 2], val=None, flatten_final=True, verbose=2, plot=False, patience=5):
     """
