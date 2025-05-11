@@ -36,19 +36,13 @@ class ConvFormer(nn.Module):
         self.fc = nn.Linear(embed_dim, num_classes)
         
     def forward(self, x):
-        print("Input shape:", x.shape)
-        x = self.cnn(x)
-        print("After CNN:", x.shape)
-        x = x.flatten(2)
-        print("After flatten:", x.shape)
-        x = x.permute(2, 0, 1)
-        print("After permute:", x.shape)
-        x = self.transformer(x)
-        print("After transformer:", x.shape)
-        x = x.mean(dim=0)
-        print("After mean:", x.shape)
-        x = self.fc(x)
-        print("Output shape:", x.shape)
+        # x: (batch, num_channels, num_freqs, num_times)
+        x = self.cnn(x)  # (batch, embed_dim, h, w)
+        x = x.flatten(2)  # (batch, embed_dim, seq_len)
+        x = x.permute(2, 0, 1)  # (seq_len, batch, embed_dim)
+        x = self.transformer(x)  # (seq_len, batch, embed_dim)
+        x = x.mean(dim=0)  # (batch, embed_dim)
+        x = self.fc(x)  # (batch, num_classes)
         return x
 
 # Ví dụ khởi tạo mô hình
