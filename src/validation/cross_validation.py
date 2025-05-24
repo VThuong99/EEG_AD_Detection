@@ -222,22 +222,22 @@ class LOSOCV(BaseCV):
                 print(f"  Train Metrics: {_compute_metrics(train_cm, self.metrics)}")
                 print(f"  Test Metrics: {_compute_metrics(test_cm, self.metrics)}")
         
-            total_train_cm = np.sum(train_confusion_matrices, axis=0)
-            total_test_cm = np.sum(test_confusion_matrices, axis=0)
-            
-            train_metrics = _compute_metrics(total_train_cm, self.metrics)
-            test_metrics = _compute_metrics(total_test_cm, self.metrics)
-            
-            if plot and histories:
-                avg_history = {
-                    'train_loss': np.mean([h['train_loss'] for h in histories], axis=0).tolist(),
-                    'val_loss': np.mean([h['val_loss'] for h in histories], axis=0).tolist(),
-                    'train_acc': np.mean([h['train_acc'] for h in histories], axis=0).tolist(),
-                    'val_acc': np.mean([h['val_acc'] for h in histories], axis=0).tolist()
-                }
-                _plot_history(avg_history, 'losocv_history.png')
-            
-            return train_metrics, test_metrics
+        total_train_cm = np.sum(train_confusion_matrices, axis=0)
+        total_test_cm = np.sum(test_confusion_matrices, axis=0)
+        
+        train_metrics = _compute_metrics(total_train_cm, self.metrics)
+        test_metrics = _compute_metrics(total_test_cm, self.metrics)
+        
+        if plot and histories:
+            avg_history = {
+                'train_loss': np.mean([h['train_loss'] for h in histories], axis=0).tolist(),
+                'val_loss': np.mean([h['val_loss'] for h in histories], axis=0).tolist(),
+                'train_acc': np.mean([h['train_acc'] for h in histories], axis=0).tolist(),
+                'val_acc': np.mean([h['val_acc'] for h in histories], axis=0).tolist()
+            }
+            _plot_history(avg_history, 'losocv_history.png')
+        
+        return train_metrics, test_metrics
     
 class MCCV(BaseCV):
     """Perform Monte-Carlo Cross-Validation with subject-dependent settings."""
