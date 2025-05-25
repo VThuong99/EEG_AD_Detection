@@ -304,9 +304,9 @@ class MCCV(BaseCV):
         
         return train_metrics, test_metrics
 
-def subject_dependent_eval(model, features, targets, test=[1, 2], val=None, flatten_final=True, verbose=2, plot=False, patience=5):
+def subject_independent_eval(model, features, targets, test=[1, 2], val=None, flatten_final=True, verbose=2, plot=False, patience=5):
     """
-    Perform subject-dependent evaluation with early stopping and plotting.
+    Perform subject-independent evaluation with early stopping and plotting.
     """
     if not all(1 <= s <= len(features) for s in test) or (val and not all(1 <= s <= len(features) for s in val)):
         raise ValueError("Test and validation indices must be valid subject IDs")
@@ -347,6 +347,6 @@ def subject_dependent_eval(model, features, targets, test=[1, 2], val=None, flat
         print(f"Test Metrics: {test_metrics}")
     
     if plot and history:
-        _plot_history(history, 'subject_dependent_history.png')
+        _plot_history(history)
     
     return train_metrics, test_metrics
