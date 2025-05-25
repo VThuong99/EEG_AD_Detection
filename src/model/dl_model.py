@@ -5,11 +5,12 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 import numpy as np
 
 class DeepLearningModel(BaseEstimator, ClassifierMixin):
-    def __init__(self, model, lr=0.001, epochs=10, batch_size=32):
+    def __init__(self, model, lr=0.001, epochs=10, batch_size=32, weight_decay=1e-4):
         self.model = model
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
+        self.weight_decay = weight_decay
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.num_gpus = torch.cuda.device_count()
 
@@ -79,7 +80,7 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
         self.model.train()
 
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
+        optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
 
         # Dataloader for training set
         dataset = torch.utils.data.TensorDataset(torch.tensor(X, dtype=torch.float32),
