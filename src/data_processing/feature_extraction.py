@@ -48,7 +48,10 @@ class PsdFeature(FeatureExtractor):
 class RbpFeature(FeatureExtractor):
     """Calculate the relative band power of the data for each subject."""
     def __init__(self, freq_bands=None, sfreq=sfreq, fmin=0.5, fmax=45):
-        self.freq_bands = sorted(list(set(freq for band in BANDS.values() for freq in band)))
+        if freq_bands is not None:
+            self.freq_bands = sorted(list(set(freq_bands)))
+        else:
+            self.freq_bands = sorted(list(set(freq for band in BANDS.values() for freq in band)))
         self.psd_feature = PsdFeature(sfreq=sfreq, fmin=fmin, fmax=fmax)
 
     def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
