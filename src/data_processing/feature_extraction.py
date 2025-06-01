@@ -55,7 +55,7 @@ class RbpFeature(FeatureExtractor):
         self.psd_feature = PsdFeature(sfreq=sfreq, fmin=fmin, fmax=fmax)
 
     def extract(self, data: np.ndarray, sfreq=None) -> np.ndarray:
-        psds = self.psd_feature.extract(data)
+        psds = self.psd_feature.extract(data, sfreq)
         freqs = self.psd_feature.get_freqs()
         rbps = relative_band_power(psds, freqs, self.freq_bands)
         return rbps 
