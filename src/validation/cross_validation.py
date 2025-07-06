@@ -3,6 +3,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import torch
 
 from src.validation.metrics import accuracy, sensitivity, specificity, f1, precision 
 
@@ -221,6 +222,8 @@ class LOSOCV(BaseCV):
                 print(f"\nFold {fold_index + 1}/{len(subject_indices)} - Subject {subject_index}:")
                 print(f"  Train Metrics: {_compute_metrics(train_cm, self.metrics)}")
                 print(f"  Test Metrics: {_compute_metrics(test_cm, self.metrics)}")
+            
+            torch.cuda.empty_cache()
         
         total_train_cm = np.sum(train_confusion_matrices, axis=0)
         total_test_cm = np.sum(test_confusion_matrices, axis=0)
