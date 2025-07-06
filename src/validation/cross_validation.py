@@ -223,6 +223,7 @@ class LOSOCV(BaseCV):
                 print(f"  Train Metrics: {_compute_metrics(train_cm, self.metrics)}")
                 print(f"  Test Metrics: {_compute_metrics(test_cm, self.metrics)}")
             
+            del train_X, train_y, test_X, test_y, train_cm, test_cm, history
             torch.cuda.empty_cache()
         
         total_train_cm = np.sum(train_confusion_matrices, axis=0)
@@ -289,6 +290,9 @@ class MCCV(BaseCV):
                 print(f"  Test Subjects: {test_indices}")
                 print(f"  Train Metrics: {_compute_metrics(train_cm, self.metrics)}")
                 print(f"  Test Metrics: {_compute_metrics(test_cm, self.metrics)}")
+
+            del train_X, train_y, val_X, val_y, test_X, test_y, train_cm, test_cm, history
+            torch.cuda.empty_cache()
         
         total_train_cm = np.sum(train_confusion_matrices, axis=0)
         total_test_cm = np.sum(test_confusion_matrices, axis=0)
@@ -303,7 +307,7 @@ class MCCV(BaseCV):
                 'train_acc': np.mean([h['train_acc'] for h in histories], axis=0).tolist(),
                 'val_acc': np.mean([h['val_acc'] for h in histories], axis=0).tolist()
             }
-            _plot_history(avg_history, 'mccv_history.png')
+            # _plot_history(avg_history, 'mccv_history.png')
         
         return train_metrics, test_metrics
 

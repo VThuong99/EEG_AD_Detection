@@ -55,18 +55,20 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
     def predict(self, X):
         self.model.to(self.device)
         self.model.eval()
+        dataset = torch.utils.data.TensorDataset(torch.tensor(X, dtype=torch.float32))
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         predictions = []
-        batch_size = self.batch_size
+        
         with torch.no_grad():
-            for i in range(0, len(X), batch_size):  # Chia dữ liệu thành các batch
-                batch_X = X[i:i + batch_size]  # Lấy một batch
-                batch_X = torch.tensor(batch_X, dtype=torch.float32).to(self.device)  # Chuyển batch sang tensor và GPU
-                if batch_X.dim() < 3:  # Đảm bảo tensor có đủ chiều
+            for batch_X, in dataloader:  # DataLoader trả về tuple (tensor,)
+                batch_X = batch_X.to(self.device, non_blocking=True)
+                if batch_X.dim() < 3:
                     batch_X = batch_X.unsqueeze(0)
-                outputs = self.model(batch_X)  # Dự đoán trên batch
-                _, batch_pred = torch.max(outputs, 1)  
-                predictions.append(batch_pred.cpu().numpy())  
-            torch.cuda.empty_cache()  
+                outputs = self.model(batch_X)
+                _, batch_pred = torch.max(outputs, 1)
+                predictions.append(batch_pred.cpu().numpy())
+            torch.cuda.empty_cache()  # Giải phóng bộ nhớ GPU
+        
         return np.concatenate(predictions)
 
     def fit_with_validation(self, X, y, val_X=None, val_y=None, patience=None, verbose=1):
@@ -174,5 +176,7 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
                 if val_dataloader:
                     log += f", Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}"
                 print(log)
+
+            torch.cuda.empty_cache()
 
         return self, history
