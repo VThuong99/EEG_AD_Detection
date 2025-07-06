@@ -55,17 +55,19 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
     def predict(self, X):
         self.model.to(self.device)
         self.model.eval()
+        predictions = []
+        batch_size = self.batch_size
         with torch.no_grad():
-            if not isinstance(X, torch.Tensor):
-                X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
-            else:
-                X_tensor = X.to(self.device)    
-            # If the input is already 3D (batch, num_channels, num_samples), use as-is.
-            if X_tensor.dim() < 3:
-                X_tensor = X_tensor.unsqueeze(0)
-            outputs = self.model(X_tensor)
-            _, predictions = torch.max(outputs, 1)
-        return predictions.cpu().numpy()
+            for i in range(0, len(X), batch_size):  # Chia dữ liệu thành các batch
+                batch_X = X[i:i + batch_size]  # Lấy một batch
+                batch_X = torch.tensor(batch_X, dtype=torch.float32).to(self.device)  # Chuyển batch sang tensor và GPU
+                if batch_X.dim() < 3:  # Đảm bảo tensor có đủ chiều
+                    batch_X = batch_X.unsqueeze(0)
+                outputs = self.model(batch_X)  # Dự đoán trên batch
+                _, batch_pred = torch.max(outputs, 1)  
+                predictions.append(batch_pred.cpu().numpy())  
+            torch.cuda.empty_cache()  
+        return np.concatenate(predictions)
 
     def fit_with_validation(self, X, y, val_X=None, val_y=None, patience=None, verbose=1):
         """
