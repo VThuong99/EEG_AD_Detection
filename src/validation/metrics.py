@@ -111,4 +111,5 @@ def f1(confusion_matrix: np.ndarray) -> float:
         rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         f1_val = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
         f1s.append(f1_val)
+    print(f"F1-scores per class: {f1s}")
     return np.mean(f1s)
