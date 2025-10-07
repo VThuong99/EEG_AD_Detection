@@ -151,25 +151,20 @@ def load_large_data(data_path: str, datasets: list, duration: float = 4.0, overl
         labels = np.load(label_path)  # Shape: (n_subjects, 2), col 0: label, col 1: subject_id
 
         for label, subject_id in labels:
-            # Skip subjects not in specified classes (HC=0, AD=2)
             if label not in label_mapping:
                 continue
 
-            # Generate feature file name, e.g., "feature_01.npy" for subject_id=1
             feature_file = f"feature_{subject_id:02d}.npy"
             feature_file_path = os.path.join(feature_path, feature_file)
 
             if os.path.exists(feature_file_path):
-                # Load feature data
                 subject_array = np.load(feature_file_path)  # Shape: (n_epochs, 128, n_channels)
                 n_epochs, current_samples, n_channels = subject_array.shape
 
-                # Verify sample rate matches expected input
                 if current_samples != target_sampling_rate:
                     print(f"Warning: Subject {subject_id} in dataset {dataset} has {current_samples} samples per epoch, expected {target_sampling_rate}. Skipping.")
                     continue
 
-                # Transpose to (n_epochs, n_channels, 128)
                 subject_array = np.transpose(subject_array, (0, 2, 1))
 
                 # Select target number of channels

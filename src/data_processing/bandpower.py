@@ -1,3 +1,4 @@
+"""Utility function for computing RBP features."""
 import numpy as np
 from scipy.integrate import simpson 
 

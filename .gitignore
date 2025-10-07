@@ -2,3 +2,9 @@ datasets/
 *.ipynb
 *.pyc
 !experiment.ipynb
+
+.venv/
+venv/
+env/
+virtualenv/
+

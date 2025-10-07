@@ -1,3 +1,4 @@
+"""Transformer-based model for EEG analysis with rbp features."""
 import torch
 import torch.nn as nn
 from src.model.layer import SEBlock, GCNLayer
@@ -175,5 +176,162 @@ class DAformer(nn.Module):
         out = self.fc(x_combined)
         return out
     
-# class Conv
-# nn.TransformerEncoder
+class SpatialCNNTransformer(nn.Module):
+    """
+    CNN-Transformer model for spatial feature extraction from EEG data.
+    This model first applies a CNN to extract features, then uses a Transformer
+    to process these features spatially.
+    """
+    def __init__(self, num_channels=19, num_bands=5, num_classes=2, d_model=64, nhead=8, num_layers=2):
+        super().__init__()
+        self.conv = nn.Conv2d(1, d_model, kernel_size=(3,3), padding=1)
+        self.transformer_encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead), num_layers)
+        self.fc = nn.Linear(d_model, num_classes)
+        self.pos_encoder = nn.Parameter(torch.randn(1, num_channels * num_bands, d_model))
+
+    def forward(self, x):
+        # Input shape: (batch, 19, 5) -> Add channel dimension: (batch, 1, 19, 5)
+        x = x.unsqueeze(1)
+        # Apply convolution: (batch, d_model, 19, 5)
+        x = self.conv(x)
+        # Flatten spatial dimensions and transpose for transformer: (batch, 19*5, d_model)
+        x = x.flatten(2).transpose(1,2)
+        # Add positional encoding
+        x = x + self.pos_encoder
+        # Process through transformer encoder
+        x = self.transformer_encoder(x)
+        # Mean pooling over the sequence length
+        x = x.mean(dim=1)
+        # Output classification scores
+        return self.fc(x)
+
+class ChannelMLPTransformer(nn.Module):
+    """
+    Channel-wise MLP followed by a Transformer for EEG analysis.
+    Applies a linear transformation channel by channel before transformer processing.
+    """
+    def __init__(self, num_channels=19, num_bands=5, num_classes=2, d_model=64, nhead=8, num_layers=2):
+        super().__init__()
+        self.mlp = nn.Linear(num_bands, d_model)
+        self.transformer_encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead), num_layers)
+        self.fc = nn.Linear(d_model, num_classes)
+        self.pos_encoder = nn.Parameter(torch.randn(1, num_channels, d_model))
+
+    def forward(self, x):
+        # Input shape: (batch, 19, 5) -> Apply MLP: (batch, 19, d_model)
+        x = self.mlp(x)
+        # Add positional encoding
+        x = x + self.pos_encoder
+        # Process through transformer encoder
+        x = self.transformer_encoder(x)
+        # Mean pooling over channels
+        x = x.mean(dim=1)
+        # Output classification scores
+        return self.fc(x)
+
+class BandTransformer(nn.Module):
+    """
+    Frequency-band-wise Transformer for EEG analysis.
+    Embeds each frequency band and processes them using a Transformer.
+    """
+    def __init__(self, num_channels=19, num_bands=5, num_classes=2, d_model=64, nhead=8, num_layers=2):
+        super().__init__()
+        self.band_embed = nn.Linear(num_channels, d_model)
+        self.transformer_encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead), num_layers)
+        self.fc = nn.Linear(d_model, num_classes)
+        self.pos_encoder = nn.Parameter(torch.randn(1, num_bands, d_model))
+
+    def forward(self, x):
+        # Input shape: (batch, 19, 5) -> Transpose for band processing: (batch, 5, 19)
+        x = x.transpose(1,2)
+        # Apply embedding per band: (batch, 5, d_model)
+        x = self.band_embed(x)
+        # Add positional encoding
+        x = x + self.pos_encoder
+        # Process through transformer encoder
+        x = self.transformer_encoder(x)
+        # Mean pooling over bands
+        x = x.mean(dim=1)
+        # Output classification scores
+        return self.fc(x)
+
+class PureTransformerEEG(nn.Module):
+    """
+    A pure Transformer-based model for EEG classification.
+    It embeds EEG segments and processes them directly with a Transformer encoder.
+    """
+    def __init__(self, num_channels=19, num_bands=5, num_classes=2,
+                 d_model=64, nhead=8, num_layers=2, dropout=0.1):
+        super().__init__()
+        self.num_channels = num_channels
+        self.d_model = d_model
+
+        self.embedding = nn.Linear(num_bands, d_model)
+
+        self.pos_encoder = nn.Parameter(torch.zeros(1, num_channels, d_model))
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=d_model*4,
+            dropout=dropout,
+            batch_first=True
+        )
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        self.fc = nn.Linear(d_model, num_classes)
+
+    def forward(self, x):
+        # Input x shape: (batch_size, num_channels=19, num_bands=5)
+        # Embed EEG data into d_model space
+        x = self.embedding(x)  # Shape: (batch_size, 19, d_model)
+
+        # Add positional encoding to incorporate channel information
+        x = x + self.pos_encoder
+
+        # Process through the Transformer Encoder
+        x = self.transformer_encoder(x)  # Shape: (batch_size, 19, d_model)
+
+        # Mean pooling across channels to aggregate features
+        x = x.mean(dim=1)  # Shape: (batch_size, d_model)
+
+        # Output classification scores
+        return self.fc(x)
+    
+class _Conv1dformer(nn.Module):
+    """Lightweight Convformer model"""
+    def __init__(self, num_channels=19, num_bands=5, num_classes=2, d_model=64, nhead=8,
+                 num_layers=2, dim_feedforward=128, dropout=0.1, kernel_size=3):
+        super(_Conv1dformer, self).__init__()
+        self.num_channels = num_channels
+        self.num_bands = num_bands
+        self.seq_len = num_bands
+
+        self.conv = nn.Conv1d(
+            in_channels=num_channels,
+            out_channels=d_model,
+            kernel_size=kernel_size,
+            padding=kernel_size//2
+        )
+        self.pos_encoder = nn.Parameter(torch.randn(1, self.seq_len, d_model))
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            batch_first=True
+        )
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.fc = nn.Linear(d_model, num_classes)
+
+    def forward(self, x):
+        x_conv = self.conv(x)
+        x_conv = x_conv.transpose(1, 2)
+        x_conv = x_conv + self.pos_encoder
+        x_tr = self.transformer_encoder(x_conv)
+        x_tr = x_tr.mean(dim=1)
+        out = self.fc(x_tr)
+        return out

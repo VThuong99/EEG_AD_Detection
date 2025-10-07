@@ -1,4 +1,5 @@
-import torch
+# Implementation of the one-branch Dice-Net architecture.
+# Reference paper: https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10179900import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -200,12 +201,7 @@ class DICENetSingleBranchRBP(nn.Module):
         logits = self.ffn(cls_token)
         return logits
 
-##########################################
-# Testing the DICENetSingleBranchRBP Model
-##########################################
-
 if __name__ == "__main__":
-    # Dummy data: features shape (batch, T, B, C)
     batch_size = 38  
     T, B, C = 30, 5, 19
     num_classes = 2

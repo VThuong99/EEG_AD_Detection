@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
 
-class ConvFormer(nn.Module):
+class LargeConvFormer(nn.Module):
+    """ ConvFormer model for experimenting with STFT/CWT features."""
     def __init__(self, num_channels, num_freqs, num_times, num_classes, 
                  embed_dim=128, num_heads=8, num_layers=2, dropout=0.1):
-        super(ConvFormer, self).__init__()
+        super(LargeConvFormer, self).__init__()
         
-        # CNN Stem
+        # Conv part
         self.cnn = nn.Sequential(
             nn.Conv2d(num_channels, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
@@ -19,7 +20,6 @@ class ConvFormer(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
         
-        # Tính toán độ dài chuỗi sau CNN
         with torch.no_grad():
             dummy_input = torch.zeros(1, num_channels, num_freqs, num_times)
             cnn_output = self.cnn(dummy_input)
@@ -44,9 +44,3 @@ class ConvFormer(nn.Module):
         x = x.mean(dim=0)  # (batch, embed_dim)
         x = self.fc(x)  # (batch, num_classes)
         return x
-
-# Ví dụ khởi tạo mô hình
-# Cho STFT: num_channels=19, num_freqs=251, num_times=30
-stft_model = ConvFormer(num_channels=19, num_freqs=251, num_times=30, num_classes=2)
-# Cho CWT: num_channels=19, num_freqs=22, num_times=2000
-cwt_model = ConvFormer(num_channels=19, num_freqs=22, num_times=2000, num_classes=2)

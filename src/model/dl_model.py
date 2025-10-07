@@ -1,3 +1,4 @@
+# Deep learning wrapper for evaluating PyTorch models with scikit-learn.
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -60,14 +61,14 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
         predictions = []
         
         with torch.no_grad():
-            for batch_X, in dataloader:  # DataLoader trả về tuple (tensor,)
+            for batch_X, in dataloader:  
                 batch_X = batch_X.to(self.device, non_blocking=True)
                 if batch_X.dim() < 3:
                     batch_X = batch_X.unsqueeze(0)
                 outputs = self.model(batch_X)
                 _, batch_pred = torch.max(outputs, 1)
                 predictions.append(batch_pred.cpu().numpy())
-            torch.cuda.empty_cache()  # Giải phóng bộ nhớ GPU
+            torch.cuda.empty_cache()  
         
         return np.concatenate(predictions)
 
@@ -166,7 +167,6 @@ class DeepLearningModel(BaseEstimator, ClassifierMixin):
                                 print(f"Early stopping at epoch {epoch+1}")
                             break
             else:
-                # If don't use validation, assign None
                 history['val_loss'].append(None)
                 history['val_acc'].append(None)
             
