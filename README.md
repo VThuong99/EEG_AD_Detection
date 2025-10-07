@@ -15,7 +15,7 @@ This project explores the use of machine learning techniques to analyze EEG sign
 
 The overall architecture of the proposed EEG-based Alzheimer’s detection pipeline is illustrated below:
 
-![](Architecture.png)
+![](results/Architecture.png)
 
 ## Results
 
